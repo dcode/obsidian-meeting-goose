@@ -17,7 +17,7 @@ MeetingMind Pro unlocks AI-powered features that transform your meeting transcri
 
 **$39 one-time payment** — lifetime license, no subscription.
 
-[Get Pro License](https://tumbucon.gumroad.com/l/meetingmind-pro)
+[Get Pro License](https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=docs.meetingmind.me&utm_medium=pro_overview_pricing_cta&utm_campaign=pro)
 
 ## Requirements
 
@@ -31,7 +31,7 @@ You pay for API usage directly to Anthropic or OpenAI. Typical meeting costs ~$0
 
 ## Setup
 
-1. [Purchase a Pro license](https://tumbucon.gumroad.com/l/meetingmind-pro)
+1. [Purchase a Pro license](https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=docs.meetingmind.me&utm_medium=pro_overview_setup_step&utm_campaign=pro)
 2. [Activate your license](/pro/license)
 3. [Add your API key](/pro/api-keys)
 4. Enable AI features in settings

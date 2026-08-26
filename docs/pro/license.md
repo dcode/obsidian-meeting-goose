@@ -4,7 +4,7 @@ Activate your MeetingMind Pro license to unlock AI features.
 
 ## Get a License
 
-1. Go to [tumbucon.gumroad.com/l/meetingmind-pro](https://tumbucon.gumroad.com/l/meetingmind-pro)
+1. Go to [tumbucon.gumroad.com/l/meetingmind-pro](https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=docs.meetingmind.me&utm_medium=pro_license_get_license_step&utm_campaign=pro)
 2. Complete your purchase ($39 one-time)
 3. You'll receive a license key via email
 

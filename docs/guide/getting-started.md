@@ -52,7 +52,7 @@ MeetingMind is an Obsidian plugin that:
 
 If you upgrade to Pro, you can easily add AI enrichment to your existing meeting notes:
 
-1. [Get a Pro license](https://tumbucon.gumroad.com/l/meetingmind-pro)
+1. [Get a Pro license](https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=docs.meetingmind.me&utm_medium=guide_getting_started_upgrade_step&utm_campaign=pro)
 2. [Activate your license](/pro/license) and [add your API key](/pro/api-keys)
 3. Run command: `MeetingMind: Reprocess all meetings (add AI to existing notes)`
 

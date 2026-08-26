@@ -135,7 +135,7 @@ Team decided to maintain backward compatibility through Q1.
 | **Free** | $0 | Multi-format parsing, auto-linking, folder watcher, participant tracking, meeting dashboard, Dataview-ready output |
 | **Pro** | $39 one-time | + Context-aware AI summaries, action items, decisions, vault-aware tag suggestions, participant insights, entity extraction. Uses your own API keys for full privacy control. |
 
-[Get Pro License](https://tumbucon.gumroad.com/l/meetingmind-pro)
+[Get Pro License](https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=github&utm_medium=readme_pricing_cta&utm_campaign=pro)
 
 ## Frequently Asked Questions
 

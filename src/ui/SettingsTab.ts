@@ -294,7 +294,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
         cls: 'mod-cta' 
       });
       upgradeBtn.addEventListener('click', () => {
-        window.open('https://tumbucon.gumroad.com/l/meetingmind-pro', '_blank');
+        window.open('https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=obsidian_plugin&utm_medium=settings_ai_banner&utm_campaign=pro', '_blank');
       });
     }
     
@@ -858,7 +858,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
           .setButtonText('Get pro license')
           .setCta()
           .onClick(() => {
-            window.open('https://tumbucon.gumroad.com/l/meetingmind-pro', '_blank');
+            window.open('https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=obsidian_plugin&utm_medium=settings_license_button&utm_campaign=pro', '_blank');
           })
         );
     } else {
