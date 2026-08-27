@@ -45,8 +45,8 @@ Every meeting note includes:
 date: 2024-12-18
 duration: 45
 participants:
-  - "[[Sarah Chen]]"
-  - "[[Marcus Webb]]"
+  - "[[Product Lead]]"
+  - "[[Engineering Lead]]"
 source: vtt
 tags: []
 ---
@@ -69,7 +69,7 @@ type: person
 created: 2024-12-18
 ---
 
-# Sarah Chen
+# Engineering Lead
 
 **Role**: Engineering Lead
 
@@ -124,7 +124,7 @@ status: blocked
 
 Connection timeouts occurring under load.
 
-**Raised by**: [[Sarah Chen]]
+**Raised by**: [[Engineering Lead]]
 
 ## Status
 
@@ -151,7 +151,7 @@ category: technical
 
 Payment processing flow for the application.
 
-**Owner**: [[Sarah Chen]]
+**Owner**: [[Engineering Lead]]
 
 ## Related Meetings
 - [[2024-12-18 Project Kickoff]] (2024-12-18)
@@ -170,4 +170,3 @@ FROM "Meetings"
 WHERE date >= date(today) - dur(7 days)
 SORT date DESC
 ```
-

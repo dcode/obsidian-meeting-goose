@@ -112,10 +112,10 @@ const Hero = () => {
                           <span>People</span>
                         </div>
                         <div className="pl-4 space-y-1 border-l border-stone-200 ml-1.5 text-stone-500">
-                           <div className="hover:text-stone-900 cursor-pointer">Aisha Patel</div>
-                           <div className="hover:text-stone-900 cursor-pointer">Chris Park</div>
-                           <div className="hover:text-stone-900 cursor-pointer">Derek Nguyen</div>
-                           <div className="hover:text-stone-900 cursor-pointer">Maya Rodriguez</div>
+                           <div className="hover:text-stone-900 cursor-pointer">Product Lead</div>
+                           <div className="hover:text-stone-900 cursor-pointer">Engineering Lead</div>
+                           <div className="hover:text-stone-900 cursor-pointer">Operations Lead</div>
+                           <div className="hover:text-stone-900 cursor-pointer">Customer Lead</div>
                         </div>
                       </div>
 
@@ -170,7 +170,7 @@ const Hero = () => {
                          </div>
                          <p className="text-stone-800 text-sm leading-relaxed">
                             Team discussed the <span className="text-purple-700 font-medium hover:underline decoration-purple-300 cursor-pointer">[[Phoenix Launch]]</span> timeline. 
-                            <span className="text-purple-700 font-medium hover:underline decoration-purple-300 cursor-pointer">[[Maya Rodriguez]]</span> raised concerns about API latency. 
+                             <span className="text-purple-700 font-medium hover:underline decoration-purple-300 cursor-pointer">[[Engineering Lead]]</span> raised concerns about API latency.
                             Agreed to delay public beta by one week to fix critical <span className="text-purple-700 font-medium hover:underline decoration-purple-300 cursor-pointer">[[Issues/OAuth Integration]]</span>.
                          </p>
                       </div>
@@ -182,11 +182,11 @@ const Hero = () => {
                         <ul className="space-y-2 text-sm text-stone-600">
                            <li className="flex items-start gap-2 group cursor-pointer hover:bg-stone-50 p-1.5 -ml-1.5 rounded transition-colors">
                               <input type="checkbox" className="mt-1 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500" />
-                              <span><span className="text-purple-700 font-medium hover:underline decoration-purple-300">[[Chris Park]]</span> to run load tests on new endpoints</span>
+                               <span><span className="text-purple-700 font-medium hover:underline decoration-purple-300">[[Engineering Lead]]</span> to run load tests on new endpoints</span>
                            </li>
                            <li className="flex items-start gap-2 group cursor-pointer hover:bg-stone-50 p-1.5 -ml-1.5 rounded transition-colors">
                               <input type="checkbox" className="mt-1 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500" />
-                              <span><span className="text-purple-700 font-medium hover:underline decoration-purple-300">[[Aisha Patel]]</span> to update documentation</span>
+                               <span><span className="text-purple-700 font-medium hover:underline decoration-purple-300">[[Product Lead]]</span> to update documentation</span>
                            </li>
                         </ul>
                       </div>
@@ -357,7 +357,7 @@ const Features = () => {
             <ul className="space-y-3 text-stone-600 font-sans text-sm">
               <li className="flex items-center gap-3">
                 <Icons.Check className="text-emerald-700" size={16} />
-                <span>Intelligent linking: "Sarah mentioned the Phoenix Project" → <code className="text-xs bg-stone-100 px-1 rounded">[[Sarah]] mentioned the [[Phoenix Project]]</code></span>
+                <span>Intelligent linking: "The product lead mentioned the Phoenix Project" → <code className="text-xs bg-stone-100 px-1 rounded">[[Product Lead]] mentioned the [[Phoenix Project]]</code></span>
               </li>
               <li className="flex items-center gap-3">
                 <Icons.Check className="text-emerald-700" size={16} />
@@ -411,7 +411,7 @@ const Features = () => {
             <div className="absolute -inset-4 bg-blue-100/50 rounded-xl -rotate-1 group-hover:rotate-0 transition-transform duration-500"></div>
             <div className="relative bg-white border border-stone-200 rounded-lg shadow-xl overflow-hidden p-6">
               <div className="text-stone-300 text-xs font-mono mb-3">---<br/>type: person<br/>---</div>
-              <div className="text-xl font-serif text-stone-900 mb-4"># Sarah Chen</div>
+              <div className="text-xl font-serif text-stone-900 mb-4"># Engineering Lead</div>
               <div className="space-y-3 text-sm">
                 <div className="text-stone-500">## Top of Mind</div>
                 <div className="text-stone-500 text-xs mt-2">### Owns</div>
@@ -521,7 +521,7 @@ const Features = () => {
               <div className="space-y-3 text-sm">
                 <div className="text-stone-500">## Description</div>
                 <div className="pl-4 text-stone-600">Refresh token handling issue with Google API</div>
-                <div className="pl-4 text-stone-600 mt-2"><strong>Raised by</strong>: [[Chris Park]]</div>
+                  <div className="pl-4 text-stone-600 mt-2"><strong>Raised by</strong>: [[Product Lead]]</div>
                 <div className="text-stone-500 mt-4">## Status</div>
                 <div className="pl-4 text-stone-600">blocked</div>
                 <div className="text-stone-500 mt-4">## Related Meetings</div>
@@ -627,11 +627,11 @@ const Features = () => {
                   <div className="text-stone-500 mb-2">## 👥 Top Collaborators</div>
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between text-stone-600">
-                      <span className="text-purple-700 font-medium">[[Sarah Chen]]</span>
+                      <span className="text-purple-700 font-medium">[[Product Lead]]</span>
                       <span>12 meetings</span>
                     </div>
                     <div className="flex justify-between text-stone-600">
-                      <span className="text-purple-700 font-medium">[[Marcus Webb]]</span>
+                      <span className="text-purple-700 font-medium">[[Engineering Lead]]</span>
                       <span>8 meetings</span>
                     </div>
                     <div className="flex justify-between text-stone-600">

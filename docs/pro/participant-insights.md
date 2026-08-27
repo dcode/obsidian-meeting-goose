@@ -7,7 +7,7 @@ Get AI-generated insights for each meeting participant, automatically linked to 
 Participant notes include rich, structured insights with automatic linking:
 
 ```markdown
-# Maya Rodriguez
+# Engineering Lead
 
 **Role**: Engineering Lead
 
@@ -55,13 +55,13 @@ Participant notes now have an **About** section that evolves over time. Each mee
 **After first meeting:**
 ```markdown
 ## About
-Sam is a backend engineer working on the authentication system.
+The engineering lead is a backend engineer working on the authentication system.
 ```
 
 **After second meeting (AI synthesizes):**
 ```markdown
 ## About
-Sam Chen is a senior backend engineer specializing in authentication and security. Currently leading the OAuth integration project and mentoring junior developers on the team.
+The engineering lead is a senior backend engineer specializing in authentication and security. They lead the OAuth integration project and mentor junior developers on the team.
 ```
 
 This creates a **living profile** that captures who someone is professionally, based on accumulated meeting context.
@@ -108,4 +108,3 @@ Participant insights are automatically included when:
 - **Team dynamics**: Understand who drives decisions and owns initiatives
 - **Accountability**: Track who raised issues and who owns topics
 - **Knowledge graph**: Build a network of people, topics, and issues
-

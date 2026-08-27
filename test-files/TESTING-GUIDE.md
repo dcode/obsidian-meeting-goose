@@ -22,19 +22,19 @@
 
 To test auto-linking, first create these notes in your vault:
 
-1. Create `Sarah Chen.md`:
+1. Create `Engineering Lead.md`:
 ```markdown
 ---
-aliases: [Sarah]
+aliases: [Engineering]
 ---
-# Sarah Chen
+# Engineering Lead
 Engineering Lead
 ```
 
-2. Create `Marcus Webb.md`:
+2. Create `Product Lead.md`:
 ```markdown
-# Marcus Webb
-Senior Developer
+# Product Lead
+Product Manager
 ```
 
 3. Create `Enrollment API.md`:
@@ -50,7 +50,7 @@ Our flagship integration project.
 ```
 
 Then import a transcript. You should see:
-- `[[Sarah Chen]]` or `[[Sarah Chen|Sarah]]` auto-linked
+- `[[Engineering Lead]]` or `[[Engineering Lead|Engineering]]` auto-linked
 - `[[Enrollment API]]` auto-linked
 - `[[Project Alpha]]` auto-linked
 
@@ -145,4 +145,3 @@ For testing wins extraction, entity status updates, Top of Mind/Archive, and ref
 - Run "Rebuild vault index" command
 - Check that notes exist with matching names
 - Check excluded folders in settings
-

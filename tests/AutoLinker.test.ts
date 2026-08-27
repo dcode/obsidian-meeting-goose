@@ -21,7 +21,7 @@ describe('AutoLinker', () => {
     (app.metadataCache as any)._clear();
     
     // Set up a basic vault
-    (app.vault as any)._setFile('People/Sarah Chen.md', '# Sarah');
+    (app.vault as any)._setFile('People/Engineering Lead.md', '# Engineering Lead');
     (app.vault as any)._setFile('Projects/Project Phoenix.md', '# Phoenix');
     (app.vault as any)._setFile('Notes/API.md', '# API Documentation');
     
@@ -30,39 +30,39 @@ describe('AutoLinker', () => {
 
   describe('processText', () => {
     it('should create links for exact matches', () => {
-      const text = 'Sarah Chen is working on Project Phoenix.';
+      const text = 'Engineering Lead is working on Project Phoenix.';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toContain('[[Sarah Chen]]');
+      expect(result.linkedText).toContain('[[Engineering Lead]]');
       expect(result.linkedText).toContain('[[Project Phoenix]]');
     });
 
     it('should only link first occurrence of each term', () => {
-      const text = 'Sarah Chen met with Sarah Chen about the project.';
+      const text = 'Engineering Lead met with Engineering Lead about the project.';
       const result = autoLinker.processText(text);
 
       // Count occurrences of the link
-      const linkCount = (result.linkedText.match(/\[\[Sarah Chen\]\]/g) || []).length;
+      const linkCount = (result.linkedText.match(/\[\[Engineering Lead\]\]/g) || []).length;
       expect(linkCount).toBe(1);
       
       // Second occurrence should remain as plain text
-      expect(result.linkedText).toMatch(/\[\[Sarah Chen\]\].*Sarah Chen/);
+      expect(result.linkedText).toMatch(/\[\[Engineering Lead\]\].*Engineering Lead/);
     });
 
     it('should preserve case in display text', () => {
-      const text = 'SARAH CHEN is working on project phoenix.';
+      const text = 'ENGINEERING LEAD is working on project phoenix.';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toContain('[[Sarah Chen|SARAH CHEN]]');
+      expect(result.linkedText).toContain('[[Engineering Lead|ENGINEERING LEAD]]');
       expect(result.linkedText).toContain('[[Project Phoenix|project phoenix]]');
     });
 
     it('should use simple link when case matches', () => {
-      const text = 'Sarah Chen is here.';
+      const text = 'Engineering Lead is here.';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toContain('[[Sarah Chen]]');
-      expect(result.linkedText).not.toContain('[[Sarah Chen|Sarah Chen]]');
+      expect(result.linkedText).toContain('[[Engineering Lead]]');
+      expect(result.linkedText).not.toContain('[[Engineering Lead|Engineering Lead]]');
     });
 
     it('should match word boundaries only', () => {
@@ -76,25 +76,25 @@ describe('AutoLinker', () => {
     });
 
     it('should not link inside existing wiki-links', () => {
-      const text = 'See [[Sarah Chen Notes]] for details about Sarah Chen.';
+      const text = 'See [[Engineering Lead Notes]] for details about Engineering Lead.';
       const result = autoLinker.processText(text);
 
       // Should not modify the existing link
-      expect(result.linkedText).toContain('[[Sarah Chen Notes]]');
+      expect(result.linkedText).toContain('[[Engineering Lead Notes]]');
       
       // Should link the second occurrence
-      expect(result.linkedText).toMatch(/\[\[Sarah Chen Notes\]\].*\[\[Sarah Chen\]\]/);
+      expect(result.linkedText).toMatch(/\[\[Engineering Lead Notes\]\].*\[\[Engineering Lead\]\]/);
     });
 
     it('should not link inside markdown links', () => {
-      const text = '[Sarah Chen Profile](https://example.com) and Sarah Chen.';
+      const text = '[Engineering Lead Profile](https://example.com) and Engineering Lead.';
       const result = autoLinker.processText(text);
 
       // Should not modify the markdown link
-      expect(result.linkedText).toContain('[Sarah Chen Profile](https://example.com)');
+      expect(result.linkedText).toContain('[Engineering Lead Profile](https://example.com)');
       
       // Should link the second occurrence
-      expect(result.linkedText.match(/\[\[Sarah Chen\]\]/g)?.length).toBe(1);
+      expect(result.linkedText.match(/\[\[Engineering Lead\]\]/g)?.length).toBe(1);
     });
 
     it('should prefer longer matches', () => {
@@ -115,23 +115,23 @@ describe('AutoLinker', () => {
     it('should handle ambiguous matches', async () => {
       // Clear and add ambiguous terms
       (app.vault as any)._clear();
-      (app.vault as any)._setFile('People/John.md', '# John');
-      (app.vault as any)._setFile('Projects/John.md', '# John Project');
+      (app.vault as any)._setFile('People/Owner.md', '# Owner');
+      (app.vault as any)._setFile('Projects/Owner.md', '# Owner Project');
       
       vaultIndex.buildIndex();
       autoLinker = new AutoLinker(vaultIndex, 3);
 
-      const text = 'John is working on the project.';
+      const text = 'Owner is working on the project.';
       const result = autoLinker.processText(text);
 
       // Should not auto-link ambiguous term
-      expect(result.linkedText).not.toContain('[[John]]');
+      expect(result.linkedText).not.toContain('[[Owner]]');
       
       // Should provide suggestions
       expect(result.suggestedLinks.length).toBeGreaterThan(0);
-      const johnSuggestion = result.suggestedLinks.find(s => s.term === 'John');
-      expect(johnSuggestion).toBeDefined();
-      expect(johnSuggestion?.candidates).toHaveLength(2);
+      const ownerSuggestion = result.suggestedLinks.find(s => s.term === 'Owner');
+      expect(ownerSuggestion).toBeDefined();
+      expect(ownerSuggestion?.candidates).toHaveLength(2);
     });
 
     it('should skip terms with too many ambiguous matches', async () => {
@@ -185,20 +185,20 @@ describe('AutoLinker', () => {
   describe('suggested links deduplication', () => {
     it('should not duplicate suggested links', async () => {
       (app.vault as any)._clear();
-      (app.vault as any)._setFile('People/John.md', '# John');
-      (app.vault as any)._setFile('Projects/John.md', '# John');
+      (app.vault as any)._setFile('People/Owner.md', '# Owner');
+      (app.vault as any)._setFile('Projects/Owner.md', '# Owner');
       
       vaultIndex.buildIndex();
       autoLinker = new AutoLinker(vaultIndex, 3);
 
-      const text = 'John mentioned John several times.';
+      const text = 'Owner mentioned Owner several times.';
       const result = autoLinker.processText(text);
 
-      // Should only have one suggestion for "John" despite multiple occurrences
-      const johnSuggestions = result.suggestedLinks.filter(
-        s => s.term.toLowerCase() === 'john'
+      // Should only have one suggestion for "Owner" despite multiple occurrences
+      const ownerSuggestions = result.suggestedLinks.filter(
+        s => s.term.toLowerCase() === 'owner'
       );
-      expect(johnSuggestions).toHaveLength(1);
+      expect(ownerSuggestions).toHaveLength(1);
     });
   });
 
@@ -230,10 +230,10 @@ describe('AutoLinker', () => {
 
   describe('complex scenarios', () => {
     it('should handle multiple links in one sentence', () => {
-      const text = 'Sarah Chen and API work on Project Phoenix together.';
+      const text = 'Engineering Lead and API work on Project Phoenix together.';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toContain('[[Sarah Chen]]');
+      expect(result.linkedText).toContain('[[Engineering Lead]]');
       expect(result.linkedText).toContain('[[API]]');
       expect(result.linkedText).toContain('[[Project Phoenix]]');
     });
@@ -255,18 +255,18 @@ describe('AutoLinker', () => {
     });
 
     it('should preserve punctuation and spacing', () => {
-      const text = 'Hello, Sarah Chen! How is Project Phoenix?';
+      const text = 'Hello, Engineering Lead! How is Project Phoenix?';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toContain('Hello, [[Sarah Chen]]!');
+      expect(result.linkedText).toContain('Hello, [[Engineering Lead]]!');
       expect(result.linkedText).toContain('[[Project Phoenix]]?');
     });
 
     it('should handle terms at start and end of text', () => {
-      const text = 'Sarah Chen works on projects like Project Phoenix';
+      const text = 'Engineering Lead works on projects like Project Phoenix';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toContain('[[Sarah Chen]]');
+      expect(result.linkedText).toContain('[[Engineering Lead]]');
       expect(result.linkedText).toContain('[[Project Phoenix]]');
     });
   });
@@ -301,7 +301,7 @@ describe('AutoLinker', () => {
 
   describe('performance considerations', () => {
     it('should handle large text efficiently', async () => {
-      const text = 'Sarah Chen '.repeat(100) + 'Project Phoenix';
+      const text = 'Engineering Lead '.repeat(100) + 'Project Phoenix';
       
       const startTime = Date.now();
       const result = autoLinker.processText(text);
@@ -311,33 +311,32 @@ describe('AutoLinker', () => {
       expect(elapsed).toBeLessThan(100);
       
       // Should still only link first occurrence
-      const sarahCount = (result.linkedText.match(/\[\[Sarah Chen\]\]/g) || []).length;
-      expect(sarahCount).toBe(1);
+      const engineeringLeadCount = (result.linkedText.match(/\[\[Engineering Lead\]\]/g) || []).length;
+      expect(engineeringLeadCount).toBe(1);
     });
   });
 
   describe('link format', () => {
     it('should use display text format when case differs', () => {
-      const text = 'SARAH CHEN';
+      const text = 'ENGINEERING LEAD';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toBe('[[Sarah Chen|SARAH CHEN]]');
+      expect(result.linkedText).toBe('[[Engineering Lead|ENGINEERING LEAD]]');
     });
 
     it('should use simple format when case matches exactly', () => {
-      const text = 'Sarah Chen';
+      const text = 'Engineering Lead';
       const result = autoLinker.processText(text);
 
-      expect(result.linkedText).toBe('[[Sarah Chen]]');
+      expect(result.linkedText).toBe('[[Engineering Lead]]');
     });
 
     it('should use simple format for case-insensitive match', () => {
-      const text = 'sarah chen';
+      const text = 'engineering lead';
       const result = autoLinker.processText(text);
 
       // When original text is all lowercase, use display text
-      expect(result.linkedText).toBe('[[Sarah Chen|sarah chen]]');
+      expect(result.linkedText).toBe('[[Engineering Lead|engineering lead]]');
     });
   });
 });
-

@@ -12,18 +12,18 @@ MeetingMind automatically creates `[[wiki-links]]` to existing notes mentioned i
 
 - **Note titles**: `Project Phoenix.md` → matches "Project Phoenix"
 - **Explicit aliases**: Defined in frontmatter `aliases: [Phoenix, PP]`
-- **Implicit aliases**: Generated from multi-word titles ("Sarah" from "Sarah Chen")
+- **Implicit aliases**: Generated from multi-word titles ("Engineering" from "Engineering Lead")
 
 ## Example
 
 **Before:**
 ```
-We discussed the enrollment API with Sarah and Marcus.
+We discussed the enrollment API with Engineering and Product.
 ```
 
 **After:**
 ```
-We discussed the [[Enrollment API]] with [[Sarah Chen|Sarah]] and [[Marcus Webb|Marcus]].
+We discussed the [[Enrollment API]] with [[Engineering Lead|Engineering]] and [[Product Lead|Product]].
 ```
 
 ## Configuration
@@ -71,4 +71,3 @@ This removes broken links from participant notes and entity notes, keeping your 
 - **Add aliases** to frequently-mentioned notes for better matching
 - **Use consistent naming** for people and projects
 - **Exclude template folders** to avoid false matches
-

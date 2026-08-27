@@ -45,14 +45,14 @@ Your imported meeting will have:
 date: 2024-12-18
 duration: 45
 participants:
-  - "[[Sarah Chen]]"
-  - "[[Marcus Webb]]"
+  - "[[Product Lead]]"
+  - "[[Engineering Lead]]"
 source: vtt
 ---
 
 ## Transcript
 > [!note]- Full transcript (click to expand)
-> **Sarah Chen** (00:00): Let's get started...
+> **Product Lead** (00:00): Let's get started...
 ```
 
 ## What's Next?
@@ -60,4 +60,3 @@ source: vtt
 - [Configure auto-linking](/features/auto-linking) to connect mentions to existing notes
 - [Set up AI enrichment](/pro/overview) for summaries and action items (Pro)
 - [Enable participant notes](/features/participants) to track people across meetings
-

@@ -514,7 +514,7 @@ INSTRUCTIONS:
 1. Create a comprehensive "About" section that captures who this person is professionally
 2. Include: their role, what they're working on, their expertise, and responsibilities
 3. Incorporate new information without losing important existing context
-4. Write in third person (e.g., "Sarah leads the frontend team...")
+4. Write in third person (e.g., "The engineering lead owns the frontend team...")
 5. Keep it concise: 2-4 sentences
 6. Focus on actionable, useful information for someone who needs to work with them
 
@@ -1004,4 +1004,3 @@ ${transcriptText}`;
     }
   }
 }
-

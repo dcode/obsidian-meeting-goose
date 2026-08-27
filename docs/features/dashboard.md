@@ -71,8 +71,8 @@ This creates (or updates) a `Meeting Dashboard.md` file in your Meetings folder.
 
 | Person | Meetings |
 |--------|----------|
-| [[Sarah Chen]] | 12 |
-| [[Marcus Webb]] | 8 |
+| [[Product Lead]] | 12 |
+| [[Engineering Lead]] | 8 |
 | [[Engineering Team]] | 6 |
 
 *24 unique participants • 3.2 avg per meeting*
@@ -116,11 +116,10 @@ The dashboard analyzes notes that have meeting-like frontmatter:
 date: 2025-12-18
 duration: 45
 participants:
-  - "[[Sarah Chen]]"
-  - "[[Marcus Webb]]"
+  - "[[Product Lead]]"
+  - "[[Engineering Lead]]"
 source: fireflies
 ---
 ```
 
 Notes without this frontmatter won't be included in statistics.
-

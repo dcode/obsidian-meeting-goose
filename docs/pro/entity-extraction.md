@@ -60,7 +60,7 @@ status: blocked
 ## Description
 Refresh token handling issue with Google API. Documentation says one thing, actual behavior is different.
 
-**Raised by**: [[Chris Park]]
+**Raised by**: [[Engineering Lead]]
 
 ## Status
 blocked
@@ -111,7 +111,7 @@ Dashboard project with real-time charts using websocket connections.
 **After second meeting (AI synthesizes):**
 ```markdown
 ## Description
-Dashboard project with real-time charts using websocket connections. Now includes auth-related metrics. Priya is leading the implementation with a focus on performance optimization.
+Dashboard project with real-time charts using websocket connections. Now includes auth-related metrics. The frontend lead is leading the implementation with a focus on performance optimization.
 ```
 
 ### Updates Log
@@ -199,7 +199,7 @@ category: technical
 # Platform Migration
 
 ## Description
-Major initiative to modernize infrastructure, transitioning from monolith to microservices. Sam Chen is leading the effort with a target Q2 launch. Focus on Checkout Service as the first migration candidate.
+Major initiative to modernize infrastructure, transitioning from monolith to microservices. The technical lead is leading the effort with a target Q2 launch. Focus on Checkout Service as the first migration candidate.
 
 ## Updates
 - **2025-01-13** (from [[Monday Standup]]): On track for Q2 launch, Checkout Service is the first priority
@@ -232,4 +232,3 @@ Major initiative to modernize infrastructure, transitioning from monolith to mic
 - **Connect everything**: Entities link to meetings and people automatically
 - **Clean workspace**: Auto-archive keeps resolved issues organized
 - **Accountability**: See who raised issues and who owns topics
-

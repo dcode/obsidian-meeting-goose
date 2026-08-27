@@ -4,39 +4,39 @@ This folder contains everything needed to record the MeetingMind demo video.
 
 ## Scenario: "The New Hire"
 
-You're Patrick, a senior software engineer starting at a new company. Your team has a lot of moving parts—projects, issues, and people you haven't met yet. You have recordings from your first week of meetings.
+You're a senior software engineer starting at a new company. Your team has a lot of moving parts—projects, issues, and people you haven't met yet. You have recordings from your first week of meetings.
 
 ## The Cast
 
 | Name | Role |
 |------|------|
-| **You (Patrick Tumbucon)** | New Senior Engineer |
-| **Michael Kim** | Engineering Manager |
-| **Sam Chen** | Tech Lead |
-| **Priya Sharma** | Frontend Engineer |
-| **Marcus Williams** | Backend Engineer |
-| **Riley O'Brien** | DevOps |
+| **New Engineer** | Senior Engineer |
+| **Engineering Manager** | Engineering Manager |
+| **Technical Lead** | Tech Lead |
+| **Frontend Lead** | Frontend Engineer |
+| **Backend Lead** | Backend Engineer |
+| **Platform Lead** | DevOps |
 
 ## Transcript Files
 
 | File | Meeting Type | Duration | Attendees |
 |------|--------------|----------|-----------|
-| `01-monday-standup.json` | Daily Standup | 12 min | Sam, Priya, Marcus, Riley |
-| `02-architecture-review.json` | Technical Review | 35 min | Sam, Marcus, Riley |
-| `03-wednesday-standup.json` | Daily Standup | 10 min | Sam, Priya, Marcus |
-| `04-manager-1on1.json` | 1:1 | 28 min | Michael, Patrick |
+| `01-monday-standup.json` | Daily Standup | 12 min | Technical, Frontend, Backend, Platform Leads |
+| `02-architecture-review.json` | Technical Review | 35 min | Technical, Backend, Platform Leads |
+| `03-wednesday-standup.json` | Daily Standup | 10 min | Technical, Frontend, Backend Leads |
+| `04-manager-1on1.json` | 1:1 | 28 min | Engineering Manager, New Engineer |
 
 ## Key Content Across Meetings
 
 **Projects/Topics:**
 - Platform Migration (the big Q2 initiative)
 - Checkout Service (being redesigned)
-- Metrics Dashboard (Priya's domain)
+- Metrics Dashboard (owned by the Frontend Lead)
 - Auth Service (has issues)
 
 **Issues:**
 - Auth Token Refresh Bug (causes cart abandonment)
-- CI Pipeline Slowdown (Riley is fixing)
+- CI Pipeline Slowdown (the Platform Lead is fixing)
 
 ## Vault Structure
 
@@ -86,15 +86,14 @@ Demo Vault/
 │   ├── Monday Standup.md
 │   ├── Architecture Review - Checkout Service.md
 │   ├── Wednesday Standup.md
-│   └── 1-1 with Michael.md
+│   └── 1-1 with Engineering Manager.md
 ├── People/
-│   ├── Michael Kim.md
-│   ├── Patrick Tumbucon.md
-│   ├── Sam Chen.md
-│   ├── Priya Sharma.md
-│   ├── Marcus Williams.md
-│   ├── Riley O'Brien.md
-│   └── Patrick Tumbucon.md
+│   ├── Engineering Manager.md
+│   ├── New Engineer.md
+│   ├── Technical Lead.md
+│   ├── Frontend Lead.md
+│   ├── Backend Lead.md
+│   └── Platform Lead.md
 ├── Issues/
 │   ├── Auth Token Refresh Bug.md
 │   └── CI Pipeline Slowdown.md

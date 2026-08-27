@@ -37,7 +37,7 @@ export const AutoLinkVisual = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const text = "Discussed the Q1 Roadmap with Sarah. We need to finalize the API Migration.";
+  const text = "Discussed the Q1 Roadmap with the product lead. We need to finalize the API Migration.";
   
   // Helper to render linked text based on stage
   const renderText = () => {
@@ -47,7 +47,7 @@ export const AutoLinkVisual = () => {
       { text: "Discussed the ", link: false },
       { text: "[[Q1 Roadmap]]", link: true, active: stage >= 1 },
       { text: " with ", link: false },
-      { text: "[[Sarah]]", link: true, active: stage >= 2 },
+       { text: "[[Product Lead]]", link: true, active: stage >= 2 },
       { text: ". We need to finalize the ", link: false },
       { text: "[[API Migration]]", link: true, active: stage >= 3 },
       { text: ".", link: false },
@@ -98,7 +98,7 @@ export const AIExtractionVisual = () => {
         {/* Raw Text Side */}
         <div className="w-1/2 p-4 border-r border-stone-100 bg-stone-50/50 relative overflow-hidden">
           <div className="text-[10px] text-stone-400 space-y-2 blur-[0.5px]">
-            <p>Okay so let's agree that John handles the database migration by Friday.</p>
+            <p>Okay, the engineering lead will handle the database migration by Friday.</p>
             <p>I'll take care of the frontend updates.</p>
             <p>Wait, we also decided to push the launch to next week right?</p>
             <p>Yes, correct. Launch is now June 15th.</p>
@@ -118,7 +118,7 @@ export const AIExtractionVisual = () => {
                <div className="space-y-1">
                  <div className="flex items-center gap-2 bg-emerald-50 p-1.5 rounded border border-emerald-100/50">
                     <div className="w-3 h-3 border border-emerald-300 rounded-sm"></div>
-                    <div className="text-[10px] text-emerald-900">Database mig. (@John)</div>
+                     <div className="text-[10px] text-emerald-900">Database mig. (@Engineering Lead)</div>
                  </div>
                  <div className="flex items-center gap-2 bg-emerald-50 p-1.5 rounded border border-emerald-100/50">
                     <div className="w-3 h-3 border border-emerald-300 rounded-sm"></div>
@@ -146,7 +146,7 @@ export const AIExtractionVisual = () => {
 export const GraphViewVisual = () => {
   const [nodes, setNodes] = useState([
     { id: 'center', x: 50, y: 15, r: 2, label: 'Project Phoenix', color: '#10b981' }, // Emerald
-    { id: '1', x: 30, y: -5, r: 2, label: 'Sarah Chen', color: '#a855f7' }, // Purple
+    { id: '1', x: 30, y: -5, r: 2, label: 'Engineering Lead', color: '#a855f7' }, // Purple
     { id: '2', x: 70, y: -5, r: 2, label: 'API Migration', color: '#a855f7' },
     { id: '3', x: 20, y: 25, r: 2, label: 'Q1 Roadmap', color: '#64748b' },
     { id: '4', x: 80, y: 25, r: 2, label: 'Launch Plan', color: '#64748b' },
@@ -268,7 +268,7 @@ export const DataviewVisual = () => {
             <tbody className="text-xs text-stone-700">
               <tr className={`border-b border-stone-100 transition-opacity duration-500 ${rows.includes(0) ? 'opacity-100' : 'opacity-0'}`}>
                 <td className="p-2 text-purple-600 hover:underline">[[Product Sync]]</td>
-                <td className="p-2 text-stone-500">Sarah, Mike</td>
+                <td className="p-2 text-stone-500">Product Lead, Engineering Lead</td>
                 <td className="p-2"><span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-[10px]">Positive</span></td>
               </tr>
               <tr className={`border-b border-stone-100 transition-opacity duration-500 ${rows.includes(1) ? 'opacity-100' : 'opacity-0'}`}>
@@ -278,7 +278,7 @@ export const DataviewVisual = () => {
               </tr>
               <tr className={`transition-opacity duration-500 ${rows.includes(2) ? 'opacity-100' : 'opacity-0'}`}>
                 <td className="p-2 text-purple-600 hover:underline">[[1:1 Review]]</td>
-                <td className="p-2 text-stone-500">Patrick</td>
+                <td className="p-2 text-stone-500">Operations Lead</td>
                 <td className="p-2"><span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-[10px]">Positive</span></td>
               </tr>
             </tbody>

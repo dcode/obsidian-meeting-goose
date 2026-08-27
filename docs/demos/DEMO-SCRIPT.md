@@ -1,7 +1,7 @@
 # MeetingMind Demo Recording Script
 
 > **📝 Scenario: The New Hire**  
-> You're Patrick, a senior software engineer starting at a new company. Your team has a lot of moving parts—ongoing projects, open issues, and people you haven't met yet. You have recordings from your first week: 2 standups, an architecture review, and your 1:1 with your new manager. Let's see how MeetingMind helps you get up to speed.
+> You're a senior software engineer starting at a new company. Your team has a lot of moving parts—ongoing projects, open issues, and people you haven't met yet. You have recordings from your first week: 2 standups, an architecture review, and your 1:1 with your new manager. Let's see how MeetingMind helps you get up to speed.
 
 ## Overview
 
@@ -16,21 +16,21 @@
 
 | Name | Role | Notes |
 |------|------|-------|
-| **You (Patrick Tumbucon)** | New Senior Engineer | The viewer's POV |
-| **Michael Kim** | Engineering Manager | Your new manager |
-| **Sam Chen** | Tech Lead | Leads the Platform Migration |
-| **Priya Sharma** | Frontend Engineer | Owns the Metrics Dashboard |
-| **Marcus Williams** | Backend Engineer | Working on Checkout Service |
-| **Riley O'Brien** | DevOps | Handles CI/CD, deployment |
+| **New Engineer** | Senior Engineer | The viewer's POV |
+| **Engineering Manager** | Engineering Manager | Your new manager |
+| **Technical Lead** | Tech Lead | Leads the Platform Migration |
+| **Frontend Lead** | Frontend Engineer | Owns the Metrics Dashboard |
+| **Backend Lead** | Backend Engineer | Working on Checkout Service |
+| **Platform Lead** | DevOps | Handles CI/CD, deployment |
 
 ## The Meetings
 
 | File | Type | Duration | Attendees | Key Content |
 |------|------|----------|-----------|-------------|
-| `monday-standup.json` | Daily Standup | 12 min | Sam, Priya, Marcus, Riley | Platform Migration status, CI slowdown issue |
-| `architecture-review.json` | Technical Review | 35 min | Sam, Marcus, Riley | Checkout Service redesign, Auth Service issues |
-| `wednesday-standup.json` | Daily Standup | 10 min | Sam, Priya, Marcus | Metrics Dashboard progress, blockers |
-| `manager-1on1.json` | 1:1 | 28 min | Michael, Patrick | Onboarding, team context, expectations |
+| `monday-standup.json` | Daily Standup | 12 min | Technical, Frontend, Backend, Platform Leads | Platform Migration status, CI slowdown issue |
+| `architecture-review.json` | Technical Review | 35 min | Technical, Backend, Platform Leads | Checkout Service redesign, Auth Service issues |
+| `wednesday-standup.json` | Daily Standup | 10 min | Technical, Frontend, Backend Leads | Metrics Dashboard progress, blockers |
+| `manager-1on1.json` | 1:1 | 28 min | Engineering Manager, New Engineer | Onboarding, team context, expectations |
 
 ---
 
@@ -128,15 +128,15 @@ Record these actions—no voiceover needed. Take your time; you'll edit in post.
 **What you're showing:** MeetingMind auto-creates participant notes.
 
 **Actions:**
-1. Open the `1:1 with Michael` meeting note
+1. Open the `1:1 with Engineering Manager` meeting note
 2. Scroll to show AI-generated summary—it mentions the Platform Migration and your role
-3. Show participant links: `[[Michael Kim]]` and `[[Patrick Tumbucon]]`
-4. Click `[[Michael Kim]]` → Michael's participant note opens
-5. Show Michael's note structure:
+3. Show participant links: `[[Engineering Manager]]` and `[[New Engineer]]`
+4. Click `[[Engineering Manager]]` → the manager's participant note opens
+5. Show the manager's note structure:
    - "Meetings" section with the 1:1 linked
 6. Click back, open `Monday Standup` meeting note
-7. Show participants: `[[Sam Chen]]`, `[[Priya Sharma]]`, `[[Marcus Williams]]`, `[[Riley O'Brien]]`
-8. Click `[[Sam Chen]]` → Sam's participant note opens
+7. Show participants: `[[Technical Lead]]`, `[[Frontend Lead]]`, `[[Backend Lead]]`, `[[Platform Lead]]`
+8. Click `[[Technical Lead]]` → the technical lead's participant note opens
 9. Scroll to show "Meetings" section—multiple standups and the architecture review
 
 **Text overlay to add in post:** `👥 Know your team instantly`
@@ -154,9 +154,9 @@ Record these actions—no voiceover needed. Take your time; you'll edit in post.
    - `CI Pipeline Slowdown.md`
 3. Click `Auth Token Refresh Bug.md`
 4. Show the issue note:
-   - "Raised by" field linking to `[[Marcus Williams]]`
+   - "Raised by" field linking to `[[Backend Lead]]`
    - "Related Meetings" section showing multiple meetings where it was discussed
-5. **Click `[[Marcus Williams]]`** to jump to his participant note
+5. **Click `[[Backend Lead]]`** to jump to that participant note
 6. Scroll to "Raised Issues" section—show the Auth Token Refresh Bug is listed
 7. Click back to the issue note
 8. Go back to file explorer
@@ -198,7 +198,7 @@ Record these actions—no voiceover needed. Take your time; you'll edit in post.
 1. Switch back to note view
 2. In file explorer, collapse/expand folders to show structure:
    - `Meetings/` (4 notes)
-   - `People/` (6 notes: Michael, Patrick, Sam, Priya, Marcus, Riley)
+   - `People/` (6 notes: manager, new engineer, and four team leads)
    - `Issues/` (2 notes)
    - `Topics/` (several notes)
 3. Quick visual scan showing all the auto-generated notes
@@ -234,15 +234,15 @@ Record this separately and sync to edited video.
 
 ### Scene 3: Understanding the Team
 
-> "My manager Michael explains the team structure—"
+> "My manager explains the team structure—"
 
-[When showing Michael's note]
+[When showing the manager's note]
 
 > "—and MeetingMind links everything automatically."
 
-[When showing Sam's note with multiple meetings]
+[When showing the technical lead's note with multiple meetings]
 
-> "Sam's the tech lead. He's in every meeting. Now I know who to ask."
+> "The technical lead is in every meeting. Now I know who to ask."
 
 ### Scene 4: Tracking Issues
 
@@ -254,9 +254,9 @@ Record this separately and sync to edited video.
 
 [When showing Auth Token Refresh Bug]
 
-> "The auth bug everyone's talking about. Marcus raised it—"
+> "The auth bug everyone's talking about. The backend lead raised it—"
 
-[When clicking to Marcus's note]
+[When clicking to the backend lead's note]
 
 > "—and I can see it from his perspective too. The links go both ways."
 
@@ -340,17 +340,17 @@ Record this separately and sync to edited video.
 
 [0:12] Standups, architecture reviews, my 1:1—all in.
 
-[0:16] My manager Michael explains the team structure—
+[0:16] My manager explains the team structure—
 
 [0:19] —and MeetingMind links everything automatically.
 
-[0:22] Sam's the tech lead. He's in every meeting. Now I know who to ask.
+[0:22] The technical lead is in every meeting. Now I know who to ask.
 
 [0:27] But here's what I really needed—
 
 [0:29] Every issue mentioned across my meetings, pulled out automatically.
 
-[0:33] The auth bug everyone's talking about. Marcus raised it—
+[0:33] The auth bug everyone's talking about. The backend lead raised it—
 
 [0:37] —and I can see it from his perspective too. The links go both ways.
 
@@ -421,7 +421,7 @@ For Twitter/TikTok, cut to essentials:
 
 [0:08] MeetingMind builds participant notes automatically.
 
-[0:12] [Show Sam's note with multiple meetings]
+[0:12] [Show the technical lead's note with multiple meetings]
 
 [0:15] It finds issues mentioned across meetings—
 

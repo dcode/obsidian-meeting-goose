@@ -6,9 +6,9 @@ Automatically extract tasks and commitments from your meetings.
 
 ```markdown
 ## Action Items
-- [ ] Draft migration timeline (@Patrick, due: Jan 20)
-- [ ] Audit current API consumers (@Marcus)
-- [ ] Schedule stakeholder review meeting (@Sarah)
+- [ ] Draft migration timeline (@Engineering Lead, due: Jan 20)
+- [ ] Audit current API consumers (@Product Lead)
+- [ ] Schedule stakeholder review meeting (@Customer Lead)
 - [ ] Update documentation for v2 changes (@Team)
 ```
 
@@ -30,4 +30,3 @@ Action items use standard Obsidian task format, compatible with:
 - Obsidian Tasks plugin
 - Dataview task queries
 - Any task management workflow
-

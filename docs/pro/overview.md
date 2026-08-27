@@ -61,12 +61,12 @@ With Pro enabled, your meeting notes include:
 ## Summary
 Discussed Q1 roadmap priorities and resource allocation. 
 Team agreed to focus on API v2 migration before new features.
-Sarah will lead the technical planning.
+The engineering lead will lead the technical planning.
 
 ## Action Items
-- [ ] Draft migration timeline (@Patrick, due: Jan 20)
-- [ ] Audit current API consumers (@Marcus)
-- [ ] Schedule stakeholder review (@Sarah)
+- [ ] Draft migration timeline (@Engineering Lead, due: Jan 20)
+- [ ] Audit current API consumers (@Product Lead)
+- [ ] Schedule stakeholder review (@Customer Lead)
 
 ## Decisions
 - Prioritize API v2 migration over new features
@@ -80,4 +80,3 @@ Sarah will lead the technical planning.
 |----------|-------|----------|
 | **Claude** (Anthropic) | claude-sonnet-4-20250514 | Best quality, recommended |
 | **OpenAI** | gpt-4o | Alternative option |
-

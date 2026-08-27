@@ -39,7 +39,7 @@ MeetingMind is an Obsidian plugin that automatically imports meeting transcripts
 *Automatically connects meeting content to your existing notes—no manual linking required.*
 
 - **Intelligent Linking**: Automatically creates `[[wiki-links]]` to existing notes in your vault
-  - *Example*: "Sarah mentioned the Phoenix Project" → `[[Sarah]] mentioned the [[Phoenix Project]]` (if those notes exist)
+  - *Example*: "The product lead mentioned the Phoenix Project" → `[[Product Lead]] mentioned the [[Phoenix Project]]` (if those notes exist)
 - **Alias Support**: Matches note titles, explicit aliases, and implicit aliases
 - **Disambiguation**: Handles ambiguous references gracefully
 - **Suggested Links**: Surfaces potential links for manual resolution when confidence is low
@@ -89,9 +89,9 @@ MeetingMind is an Obsidian plugin that automatically imports meeting transcripts
 date: 2025-01-15
 duration: 47
 participants:
-  - "[[Sarah Chen]]"
-  - "[[Marcus Webb]]"
-  - "[[Patrick]]"
+  - "[[Product Lead]]"
+  - "[[Engineering Lead]]"
+  - "[[Partner Lead]]"
 source: otter
 tags: [engineering, api, migration]
 ---
@@ -101,9 +101,9 @@ Discussed timeline for the [[Enrollment API]] v2 migration.
 Team decided to maintain backward compatibility through Q1.
 
 ## Action Items
-- [ ] Draft deprecation timeline (@Patrick, due: Jan 20)
-- [ ] Audit downstream consumers (@Marcus)
-- [ ] Schedule partner communication sync (@Sarah)
+- [ ] Draft deprecation timeline (@Partner Lead, due: Jan 20)
+- [ ] Audit downstream consumers (@Engineering Lead)
+- [ ] Schedule partner communication sync (@Product Lead)
 
 ## Decisions
 - Keep v1 API available through end of Q1
@@ -112,7 +112,7 @@ Team decided to maintain backward compatibility through Q1.
 ## Transcript
 > [!note]- Full transcript (click to expand)
 > 
-> **Sarah Chen** (00:00): Alright, let's get started...
+> **Product Lead** (00:00): Alright, let's get started...
 ```
 
 ## Commands

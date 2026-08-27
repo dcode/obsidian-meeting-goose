@@ -8,7 +8,7 @@ Get concise 2-4 sentence summaries of your meetings.
 ## Summary
 Discussed Q1 roadmap priorities and engineering resource allocation. 
 Team agreed to prioritize API v2 migration over new feature development.
-Sarah will lead technical planning, with a draft timeline due next week.
+The engineering lead will lead technical planning, with a draft timeline due next week.
 ```
 
 ## How It Works
@@ -28,4 +28,3 @@ Sarah will lead technical planning, with a draft timeline due next week.
 - Summaries work best with clear meeting structure
 - Action items and decisions are extracted separately
 - Long meetings may be chunked for processing
-

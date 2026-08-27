@@ -28,7 +28,7 @@ type: person
 created: 2024-12-18
 ---
 
-# Sarah Chen
+# Engineering Lead
 
 **Role**: Technical Lead
 
@@ -111,4 +111,3 @@ With Pro, participant notes include rich AI-generated insights and automatic lin
 - **Consistent naming**: Use the same name format in meetings for best linking
 - **Add aliases**: If someone goes by multiple names, add aliases to their note
 - **People folder**: Keep participant notes in a dedicated folder for organization
-

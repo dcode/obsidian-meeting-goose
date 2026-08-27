@@ -538,7 +538,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
       // Implicit aliases
       new Setting(containerEl)
         .setName('Generate implicit aliases')
-        .setDesc('Create aliases from individual words in multi-word note titles (e.g., "sarah" from "sarah chen")')
+        .setDesc('Create aliases from individual words in multi-word note titles (e.g., "engineering" from "engineering lead")')
         .addToggle(toggle => toggle
           .setValue(this.plugin.settings.generateImplicitAliases)
           .onChange(async (value) => {
@@ -877,4 +877,3 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
     }
   }
 }
-
