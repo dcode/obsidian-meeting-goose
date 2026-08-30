@@ -735,7 +735,7 @@ ${transcriptText}`;
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: this.model || 'claude-opus-4-20250514',
+          model: this.model || 'claude-opus-4-8',
           max_tokens: 4096,
           messages: [
             {

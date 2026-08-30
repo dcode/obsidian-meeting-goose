@@ -336,7 +336,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
             this.plugin.settings.aiProvider = value as AIProvider;
             // Reset model to default for the new provider
             if (value === 'claude') {
-              this.plugin.settings.aiModel = 'claude-opus-4-20250514';
+              this.plugin.settings.aiModel = 'claude-opus-4-8';
             } else if (value === 'openai') {
               this.plugin.settings.aiModel = 'gpt-4o';
             } else {
@@ -370,10 +370,10 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
           .setDesc('Choose which Claude model to use for processing.')
           .addDropdown(dropdown => dropdown
             // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .addOption('claude-opus-4-20250514', 'Claude Opus 4 (recommended)')
+            .addOption('claude-opus-4-8', 'Claude Opus 4.8 (recommended)')
             // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .addOption('claude-sonnet-4-20250514', 'Claude Sonnet 4')
-            .setValue(this.plugin.settings.aiModel || 'claude-opus-4-20250514')
+            .addOption('claude-sonnet-4-6', 'Claude Sonnet 4.6')
+            .setValue(this.plugin.settings.aiModel || 'claude-opus-4-8')
             .onChange(async (value) => {
               this.plugin.settings.aiModel = value;
               await this.plugin.saveSettings();
@@ -406,7 +406,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
             // eslint-disable-next-line obsidianmd/ui/sentence-case
             .addOption('gpt-4o', 'GPT-4o (recommended)')
             // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .addOption('o3-mini', 'o3-mini')
+            .addOption('gpt-5.6-sol', 'GPT-5.6 Sol')
             .setValue(this.plugin.settings.aiModel || 'gpt-4o')
             .onChange(async (value) => {
               this.plugin.settings.aiModel = value;

@@ -1435,10 +1435,20 @@ export default class MeetingMindPlugin extends Plugin {
   
   async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    const modelMigrations: Record<string, string> = {
+      'claude-opus-4-20250514': 'claude-opus-4-8',
+      'claude-sonnet-4-20250514': 'claude-sonnet-4-6',
+      'o3-mini': 'gpt-5.6-sol',
+    };
+    const replacementModel = modelMigrations[this.settings.aiModel];
+    if (replacementModel) {
+      this.settings.aiModel = replacementModel;
+      await this.saveSettings();
+    }
   }
   
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
   }
 }
-

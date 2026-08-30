@@ -78,5 +78,5 @@ The engineering lead will lead the technical planning.
 
 | Provider | Model | Best For |
 |----------|-------|----------|
-| **Claude** (Anthropic) | claude-sonnet-4-20250514 | Best quality, recommended |
+| **Claude** (Anthropic) | claude-opus-4-8 | Best quality, recommended |
 | **OpenAI** | gpt-4o | Alternative option |
