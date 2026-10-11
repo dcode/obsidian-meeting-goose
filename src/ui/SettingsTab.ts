@@ -330,7 +330,6 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
         .addDropdown(dropdown => dropdown
           .addOption('claude', 'Claude')
           .addOption('openai', 'OpenAI')
-          .addOption('cloud', 'Cloud (hosted)')
           .setValue(this.plugin.settings.aiProvider)
           .onChange(async (value) => {
             this.plugin.settings.aiProvider = value as AIProvider;
@@ -415,15 +414,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
             })
           );
       }
-      
-      // Cloud info
-      if (this.plugin.settings.aiProvider === 'cloud') {
-        new Setting(containerEl)
-          .setName('Cloud processing')
-          .setDesc('AI processing happens on our servers. Requires pro + cloud subscription.')
-          .setClass('setting-item-description');
-      }
-      
+
       // Test connection button
       new Setting(containerEl)
         .setName('Test API connection')

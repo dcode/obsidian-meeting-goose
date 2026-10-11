@@ -1,6 +1,6 @@
 /**
  * AIService - AI-powered enrichment for meeting transcripts
- * Supports Claude (Anthropic), GPT-4 (OpenAI), and cloud-hosted option
+ * Supports Claude (Anthropic) and GPT-4 (OpenAI)
  */
 
 import { requestUrl, RequestUrlResponse } from 'obsidian';
@@ -165,8 +165,6 @@ ${transcriptText}`;
         response = await this.callClaude(prompt);
       } else if (this.provider === 'openai') {
         response = await this.callOpenAI(prompt);
-      } else if (this.provider === 'cloud') {
-        response = await this.callClaude(prompt);
       } else {
         return null;
       }
@@ -361,8 +359,6 @@ ${transcriptText}`;
         response = await this.callClaude(prompt);
       } else if (this.provider === 'openai') {
         response = await this.callOpenAI(prompt);
-      } else if (this.provider === 'cloud') {
-        response = await this.callClaude(prompt);
       } else {
         return null;
       }
@@ -636,9 +632,6 @@ Return ONLY the synthesized "About" text, no JSON or extra formatting.`;
         response = await this.callClaude(prompt);
       } else if (this.provider === 'openai') {
         response = await this.callOpenAI(prompt);
-      } else if (this.provider === 'cloud') {
-        // Cloud would call our backend - for now, fall back to Claude
-        response = await this.callClaude(prompt);
       } else {
         return null;
       }
@@ -939,8 +932,6 @@ ${transcriptText}`;
         response = await this.callClaude(prompt);
       } else if (this.provider === 'openai') {
         response = await this.callOpenAI(prompt);
-      } else if (this.provider === 'cloud') {
-        response = await this.callClaude(prompt);
       } else {
         return [];
       }

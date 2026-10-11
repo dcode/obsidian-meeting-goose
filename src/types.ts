@@ -101,7 +101,7 @@ export interface SyncStatus {
   message?: string;
 }
 
-export type AIProvider = 'claude' | 'openai' | 'cloud' | 'disabled';
+export type AIProvider = 'claude' | 'openai' | 'disabled';
 
 export interface MeetingMindSettings {
   // Otter.ai settings (legacy - kept for migration)

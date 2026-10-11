@@ -1446,6 +1446,13 @@ export default class MeetingMindPlugin extends Plugin {
       this.settings.aiModel = replacementModel;
       await this.saveSettings();
     }
+
+    // The unimplemented "cloud" provider was removed; it already ran on the user's Claude key.
+    if ((this.settings.aiProvider as string) === 'cloud') {
+      this.settings.aiProvider = 'claude';
+      this.settings.aiModel = 'claude-opus-4-8';
+      await this.saveSettings();
+    }
   }
   
   async saveSettings(): Promise<void> {
