@@ -59,6 +59,7 @@ export default defineConfig({
             { text: 'Microsoft Teams', link: '/features/teams' },
             { text: 'Otter.ai', link: '/features/otter-sync' },
             { text: 'Fireflies.ai', link: '/features/fireflies' },
+            { text: 'Granola', link: '/features/granola' },
             { text: 'Fathom', link: '/features/fathom' },
           ]
         }

@@ -31,6 +31,7 @@ import { AIService } from './services/AIService';
 import { FolderWatcher } from './services/FolderWatcher';
 import { OtterService } from './services/OtterService';
 import { FirefliesService } from './services/FirefliesService';
+import { GranolaService } from './services/GranolaService';
 import { NoteGenerator } from './services/NoteGenerator';
 import { ParticipantService } from './services/ParticipantService';
 import { EntityService } from './services/EntityService';
@@ -53,6 +54,7 @@ export default class MeetingMindPlugin extends Plugin {
   folderWatcher: FolderWatcher;
   otterService: OtterService;
   firefliesService: FirefliesService;
+  granolaService: GranolaService;
   noteGenerator: NoteGenerator;
   participantService: ParticipantService;
   entityService: EntityService;
@@ -104,6 +106,7 @@ export default class MeetingMindPlugin extends Plugin {
     this.folderWatcher?.destroy();
     this.otterService?.destroy();
     this.firefliesService?.destroy();
+    this.granolaService?.destroy();
   }
   
   /**
@@ -117,6 +120,7 @@ export default class MeetingMindPlugin extends Plugin {
     this.folderWatcher = new FolderWatcher(this.app);
     this.otterService = new OtterService();
     this.firefliesService = new FirefliesService();
+    this.granolaService = new GranolaService();
     this.noteGenerator = new NoteGenerator(this.app);
     this.participantService = new ParticipantService(this.app, this.aiService);
     this.entityService = new EntityService(this.app, this.aiService);
@@ -142,6 +146,7 @@ export default class MeetingMindPlugin extends Plugin {
     this.updateFolderWatcher();
     this.updateOtterService();
     this.updateFirefliesService();
+    this.updateGranolaService();
     this.updateNoteGenerator();
     this.updateParticipantService();
     this.updateEntityService();
@@ -167,6 +172,11 @@ export default class MeetingMindPlugin extends Plugin {
     // Start Fireflies sync if enabled and configured
     if (this.settings.firefliesEnabled && this.settings.firefliesApiKey) {
       this.firefliesService.startSync();
+    }
+    
+    // Start Granola sync if enabled and configured
+    if (this.settings.granolaEnabled && this.settings.granolaApiKey) {
+      this.granolaService.startSync();
     }
     
     // Archive resolved issues (run silently in background)
@@ -324,6 +334,20 @@ export default class MeetingMindPlugin extends Plugin {
       },
       (status) => {
         // Status bar updates removed to avoid sentence case violations
+      }
+    );
+
+    // Set up Granola service callbacks
+    this.granolaService.setCallbacks(
+      async (transcripts) => {
+        for (const transcript of transcripts) {
+          await this.processTranscript(transcript);
+        }
+      },
+      () => {},
+      (timestamp) => {
+        this.settings.granolaLastSync = timestamp;
+        void this.saveSettings();
       }
     );
   }
@@ -1374,7 +1398,24 @@ export default class MeetingMindPlugin extends Plugin {
       this.firefliesService.startSync();
     }
   }
-  
+
+  updateGranolaService(): void {
+    this.granolaService.configure(
+      this.settings.granolaApiKey,
+      this.settings.granolaSyncInterval,
+      this.settings.granolaLastSync
+    );
+  }
+
+  restartGranolaSync(): void {
+    this.granolaService.stopSync();
+    this.updateGranolaService();
+
+    if (this.settings.granolaEnabled && this.settings.granolaApiKey) {
+      this.granolaService.startSync();
+    }
+  }
+
   updateNoteGenerator(): void {
     this.noteGenerator.configure(
       this.settings.outputFolder,

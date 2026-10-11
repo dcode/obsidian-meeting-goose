@@ -226,8 +226,117 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
           })
         );
     }
+
+    // Granola Integration
+    new Setting(containerEl)
+      .setName('Granola integration')
+      .setHeading();
+
+    new Setting(containerEl)
+      // eslint-disable-next-line obsidianmd/ui/sentence-case
+      .setName('Enable Granola sync')
+      // eslint-disable-next-line obsidianmd/ui/sentence-case
+      .setDesc('Automatically sync notes and transcripts from Granola. Requires a Granola Business or Enterprise plan.')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.granolaEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.granolaEnabled = value;
+          await this.plugin.saveSettings();
+          this.plugin.restartGranolaSync();
+          this.display();
+        })
+      );
+
+    if (this.plugin.settings.granolaEnabled) {
+      // API Key
+      new Setting(containerEl)
+        .setName('Granola API key')
+        // eslint-disable-next-line obsidianmd/ui/sentence-case
+        .setDesc('Create an API key in the Granola desktop app.')
+        .addText(text => {
+          text
+            // eslint-disable-next-line obsidianmd/ui/sentence-case
+            .setPlaceholder('Enter your Granola API key.')
+            .setValue(this.plugin.settings.granolaApiKey)
+            .onChange(async (value) => {
+              this.plugin.settings.granolaApiKey = value;
+              await this.plugin.saveSettings();
+              this.plugin.updateGranolaService();
+            });
+          text.inputEl.type = 'password';
+          text.inputEl.addClass('meetingmind-api-key-input');
+          // Start syncing once the key is entered, not on every keystroke
+          text.inputEl.addEventListener('blur', () => this.plugin.restartGranolaSync());
+        });
+
+      // Test connection button
+      new Setting(containerEl)
+        .setName('Test connection')
+        // eslint-disable-next-line obsidianmd/ui/sentence-case
+        .setDesc('Verify your Granola API key is working.')
+        .addButton(button => button
+          .setButtonText('Test connection')
+          .onClick(async () => {
+            button.setButtonText('Testing...');
+            button.setDisabled(true);
+
+            const result = await this.plugin.granolaService.testConnection();
+
+            if (result.success) {
+              new Notice(`✓ ${result.message}`);
+            } else {
+              new Notice(`✗ ${result.message}`);
+            }
+
+            button.setButtonText('Test connection');
+            button.setDisabled(false);
+          })
+        );
+
+      // Sync interval
+      new Setting(containerEl)
+        .setName('Sync interval')
+        .setDesc('How often to check for new transcripts.')
+        .addDropdown(dropdown => dropdown
+          .addOption('5', '5 minutes')
+          .addOption('15', '15 minutes')
+          .addOption('30', '30 minutes')
+          .addOption('60', '60 minutes')
+          .setValue(this.plugin.settings.granolaSyncInterval.toString())
+          .onChange(async (value) => {
+            this.plugin.settings.granolaSyncInterval = parseInt(value);
+            await this.plugin.saveSettings();
+            this.plugin.restartGranolaSync();
+          })
+        );
+
+      // Sync now button
+      new Setting(containerEl)
+        .setName('Sync now')
+        // eslint-disable-next-line obsidianmd/ui/sentence-case
+        .setDesc('Manually trigger a sync with Granola.')
+        .addButton(button => button
+          .setButtonText('Sync now')
+          .setCta()
+          .onClick(async () => {
+            button.setButtonText('Syncing...');
+            button.setDisabled(true);
+
+            try {
+              const transcripts = await this.plugin.granolaService.sync();
+              new Notice(`Synced ${transcripts.length} transcripts from Granola`);
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Sync failed';
+              new Notice(`Sync failed: ${errorMessage}`);
+            }
+
+            button.setButtonText('Sync now');
+            button.setDisabled(false);
+          })
+        );
+    }
   }
-  
+
   /**
    * Create Output section
    */
@@ -414,7 +523,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
             })
           );
       }
-
+      
       // Test connection button
       new Setting(containerEl)
         .setName('Test API connection')

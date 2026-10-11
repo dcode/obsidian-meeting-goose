@@ -357,6 +357,7 @@ export class StatsService {
   private formatSourceName(source: string): string {
     const names: Record<string, string> = {
       'fireflies': 'Fireflies.ai',
+      'granola': 'Granola',
       'otter': 'Otter.ai',
       'local': 'Folder Watch',
       'vtt': 'VTT Import',

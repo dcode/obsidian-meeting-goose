@@ -10,6 +10,14 @@ Direct API integration syncs your transcripts automatically.
 
 [Learn more →](/features/fireflies)
 
+## Granola Sync
+
+**Best for:** Granola users on a Business or Enterprise plan
+
+Direct API integration syncs your Granola notes and transcripts automatically.
+
+[Learn more →](/features/granola)
+
 ## Zoom
 
 **Best for:** Zoom users (free and paid plans)
@@ -81,6 +89,7 @@ Import individual files via command palette.
 | Method | Auto-Import | Setup Required | Best For |
 |--------|-------------|----------------|----------|
 | Fireflies.ai Sync | ✅ | API key | Fireflies.ai users |
+| Granola Sync | ✅ | API key | Granola Business users |
 | Zoom Export | ✅* | Minimal | Zoom users |
 | Google Meet Export | ✅* | Minimal | Google Workspace users |
 | Teams Export | ✅* | Minimal | Microsoft 365 users |

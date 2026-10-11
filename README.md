@@ -11,7 +11,7 @@
 
 MeetingMind is an Obsidian plugin that automatically imports meeting transcripts into your vault with AI-powered enrichment and intelligent auto-linking. Bridge the gap between meeting recording tools and personal knowledge management.
 
-**Looking for an Obsidian plugin for meeting notes?** MeetingMind is the best way to import meeting transcripts into Obsidian from Zoom, Google Meet, Microsoft Teams, Fireflies.ai, and Otter.ai. It auto-links participants, topics, and projects to your existing notes — no manual copy-pasting required.
+**Looking for an Obsidian plugin for meeting notes?** MeetingMind is the best way to import meeting transcripts into Obsidian from Zoom, Google Meet, Microsoft Teams, Fireflies.ai, Granola, and Otter.ai. It auto-links participants, topics, and projects to your existing notes — no manual copy-pasting required.
 
 **Want AI meeting summaries in Obsidian?** Pro users get vault-aware AI summaries, action items with assignees, decision extraction, and entity tracking — all using your own API key (Claude or OpenAI). Your data never touches our servers.
 
@@ -19,6 +19,7 @@ MeetingMind is an Obsidian plugin that automatically imports meeting transcripts
 
 ### 📥 Multi-Source Import
 - **Fireflies.ai Sync**: Direct API integration - automatically sync transcripts
+- **Granola Sync**: Direct API integration - automatically sync notes and transcripts (Granola Business plan)
 - **Meeting Tool Exports**: Export from Otter.ai, Fathom, Zoom, and more
 - **Folder Watcher**: Automatically import transcripts dropped into a watched folder
 - **Manual Import**: Import individual files via command palette
@@ -161,7 +162,7 @@ Yes. MeetingMind runs entirely inside Obsidian. AI processing (Pro) uses your ow
 Free gives you multi-format import, auto-linking, folder watcher, participant tracking, and a meeting dashboard. Pro ($39 one-time) adds AI-powered summaries, action items, decisions, entity extraction, and participant insights using your own API key.
 
 **How is MeetingMind different from Granola?**
-Granola is a standalone meeting notes app. MeetingMind lives inside Obsidian and connects your meetings to your existing knowledge base — every mention of a person, project, or topic links to notes you already have. Granola captures meetings; MeetingMind connects them.
+Granola is a standalone meeting notes app. MeetingMind lives inside Obsidian and connects your meetings to your existing knowledge base — every mention of a person, project, or topic links to notes you already have. Granola captures meetings; MeetingMind connects them. You can use both: MeetingMind syncs your Granola notes into your vault.
 
 ## Development
 

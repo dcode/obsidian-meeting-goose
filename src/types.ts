@@ -11,7 +11,7 @@ export interface TranscriptSegment {
 }
 
 export interface RawTranscript {
-  source: 'otter' | 'local';
+  source: 'otter' | 'local' | 'granola';
   title: string;
   date: Date;
   duration: number; // minutes
@@ -118,6 +118,12 @@ export interface MeetingMindSettings {
   firefliesSyncInterval: number; // minutes
   firefliesLastSync: number;
   
+  // Granola settings
+  granolaEnabled: boolean;
+  granolaApiKey: string;
+  granolaSyncInterval: number; // minutes
+  granolaLastSync: number;
+  
   // Folder watcher settings
   folderWatcherEnabled: boolean;
   watchFolder: string;
@@ -179,6 +185,11 @@ export const DEFAULT_SETTINGS: MeetingMindSettings = {
   firefliesApiKey: '',
   firefliesSyncInterval: 15,
   firefliesLastSync: 0,
+  
+  granolaEnabled: false,
+  granolaApiKey: '',
+  granolaSyncInterval: 15,
+  granolaLastSync: 0,
   
   folderWatcherEnabled: false,
   watchFolder: '',
