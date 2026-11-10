@@ -22,7 +22,8 @@ The fork plan in `thoughts/plans/2026-11-09-1717-meetingmind-acp-fork-plan.md` i
   - [ ] Import `test-files/demo/01-monday-standup.json` and check the generated note, participant notes, and entity notes.
   - [ ] Confirm Goose honours `GOOSE_MODE=chat` under `goose acp` (no tool calls), and that replies still arrive as `agent_message_chunk` text.
   - [ ] Confirm `goose` is found when Obsidian is launched from the dock/desktop (the `shell-env` PATH lookup), on macOS at least.
-- [ ] **First release**: tag, attach `main.js`, `manifest.json`, `styles.css`.
+- [x] **Build/release workflow** (`.github/workflows/release.yml`): artifact on every PR and push to `main`, draft GitHub release on a version tag.
+- [ ] **First release**: push tag `0.1.0`, then publish the draft release the workflow creates.
 
 ## Later / ideas
 

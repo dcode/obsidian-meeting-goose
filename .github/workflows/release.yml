@@ -1,0 +1,119 @@
+name: Build plugin
+
+# Builds the files Obsidian loads (main.js, manifest.json, styles.css).
+#
+# - Pull requests, pushes to main, and manual runs: the build is uploaded as a
+#   workflow artifact that can be unzipped into <vault>/.obsidian/plugins/.
+# - Pushing a version tag (e.g. 0.1.0, no "v" prefix): the same build is also
+#   attached to a draft GitHub release.
+
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]+.[0-9]+.[0-9]+*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      plugin-id: ${{ steps.meta.outputs.id }}
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read plugin metadata
+        id: meta
+        run: |
+          echo "id=$(node -p "require('./manifest.json').id")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check versions agree
+        env:
+          MANIFEST_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "$package_version" != "$MANIFEST_VERSION" ]; then
+            echo "::error::package.json is $package_version but manifest.json is $MANIFEST_VERSION"
+            exit 1
+          fi
+          if ! node -e "process.exit(require('./versions.json')[process.env.MANIFEST_VERSION] ? 0 : 1)"; then
+            echo "::error::versions.json has no entry for $MANIFEST_VERSION"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$MANIFEST_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json version $MANIFEST_VERSION"
+            exit 1
+          fi
+
+      - name: Build
+        run: npm run build
+
+      - name: Check third-party notices are current
+        run: |
+          npm run notices
+          git diff --exit-code THIRD-PARTY-NOTICES.md || {
+            echo "::error::THIRD-PARTY-NOTICES.md is out of date; run 'npm run notices' and commit the result"
+            exit 1
+          }
+
+      - name: Assemble plugin folder
+        env:
+          PLUGIN_ID: ${{ steps.meta.outputs.id }}
+        run: |
+          mkdir -p "dist/$PLUGIN_ID"
+          cp main.js manifest.json styles.css LICENSE NOTICE THIRD-PARTY-NOTICES.md "dist/$PLUGIN_ID/"
+
+      # The artifact unzips to a ready-to-use <plugin-id>/ folder.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.id }}-${{ steps.meta.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.plugin-id }}-${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLUGIN_ID: ${{ needs.build.outputs.plugin-id }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          cd dist
+          zip -r "$PLUGIN_ID-$VERSION.zip" "$PLUGIN_ID"
+          # Obsidian (and BRAT) fetch main.js, manifest.json and styles.css
+          # as individual release assets; the zip is for manual installs.
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$VERSION" \
+            --generate-notes \
+            --draft \
+            "$PLUGIN_ID/main.js" \
+            "$PLUGIN_ID/manifest.json" \
+            "$PLUGIN_ID/styles.css" \
+            "$PLUGIN_ID-$VERSION.zip"

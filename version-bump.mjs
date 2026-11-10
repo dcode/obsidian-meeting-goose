@@ -25,9 +25,7 @@ if (!versions[newVersion]) {
 
 console.log(`\nVersion bump complete!`);
 console.log(`Next steps:`);
-console.log(`1. Build: npm run build`);
-console.log(`2. Commit: git commit -m "Bump version to ${newVersion}"`);
-console.log(`3. Tag: git tag v${newVersion}`);
-console.log(`4. Push: git push origin main --tags`);
-console.log(`5. Create GitHub release with main.js, manifest.json, styles.css`);
-
+console.log(`1. Push the commit and tag: git push origin main --follow-tags`);
+console.log(`   (the tag is ${newVersion}, with no "v" prefix, as Obsidian expects)`);
+console.log(`2. The "Build plugin" workflow attaches main.js, manifest.json and styles.css to a draft release`);
+console.log(`3. Review and publish the draft release on GitHub`);

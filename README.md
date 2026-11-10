@@ -47,10 +47,9 @@ Meeting Goose imports meeting transcripts into your vault, links them to the not
 
 The plugin is not in the community plugin store. Install it manually:
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/dcode/obsidian-meeting-goose/releases/latest), or build them (see [Development](#development)).
-2. Create the folder `.obsidian/plugins/meeting-goose/` in your vault.
-3. Copy the three files into it.
-4. Restart Obsidian and enable **Meeting Goose** in Settings → Community plugins.
+1. Download `meeting-goose-<version>.zip` from the [latest release](https://github.com/dcode/obsidian-meeting-goose/releases/latest) and unzip it into `.obsidian/plugins/` in your vault, so the files end up in `.obsidian/plugins/meeting-goose/`.
+   - Alternatively download `main.js`, `manifest.json`, and `styles.css` individually into that folder, or build them (see [Development](#development)).
+2. Restart Obsidian and enable **Meeting Goose** in Settings → Community plugins.
 
 ## Quick start
 
@@ -163,6 +162,22 @@ After changing runtime dependencies, regenerate the bundled-license notices:
 ```bash
 npm run notices
 ```
+
+### Builds and releases
+
+The **Build plugin** workflow (`.github/workflows/release.yml`) builds the plugin on every pull request and push to `main` and uploads a `meeting-goose-<version>` artifact containing a ready-to-use plugin folder.
+
+To cut a release, bump the version (this updates `package.json`, `manifest.json`, and `versions.json`, commits, and tags without a `v` prefix), then push:
+
+```bash
+npm version patch
+```
+
+```bash
+git push origin main --follow-tags
+```
+
+The tag triggers the same workflow, which attaches `main.js`, `manifest.json`, `styles.css`, and the zip to a **draft** GitHub release. Publish the draft when you are happy with the notes.
 
 Project status and next steps are tracked in [ROADMAP.md](ROADMAP.md).
 
