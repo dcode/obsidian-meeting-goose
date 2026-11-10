@@ -1,23 +1,23 @@
-/* MeetingMind Plugin Styles */
+/* Meeting Goose Plugin Styles */
 
 /* Status Bar */
-.meetingmind-status-icon {
+.meeting-goose-status-icon {
   display: inline-flex;
   align-items: center;
   cursor: pointer;
   padding: 2px 4px;
 }
 
-.meetingmind-status-icon:hover {
+.meeting-goose-status-icon:hover {
   background-color: var(--background-modifier-hover);
   border-radius: 4px;
 }
 
-.meetingmind-spinning {
-  animation: meetingmind-spin 1s linear infinite;
+.meeting-goose-spinning {
+  animation: meeting-goose-spin 1s linear infinite;
 }
 
-@keyframes meetingmind-spin {
+@keyframes meeting-goose-spin {
   from {
     transform: rotate(0deg);
   }
@@ -27,14 +27,14 @@
 }
 
 /* Settings Tab */
-.meetingmind-settings h2 {
+.meeting-goose-settings h2 {
   margin-top: 2em;
   margin-bottom: 0.5em;
   padding-bottom: 0.5em;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.meetingmind-settings h4 {
+.meeting-goose-settings h4 {
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   color: var(--text-muted);
@@ -43,24 +43,24 @@
   letter-spacing: 0.05em;
 }
 
-.meetingmind-settings .setting-item {
+.meeting-goose-settings .setting-item {
   padding: 12px 0;
 }
 
-.meetingmind-settings .setting-item-info {
+.meeting-goose-settings .setting-item-info {
   flex-grow: 1;
 }
 
-.meetingmind-settings .setting-item-control {
+.meeting-goose-settings .setting-item-control {
   flex-shrink: 0;
 }
 
 /* Sync Log Modal */
-.meetingmind-log-modal {
+.meeting-goose-log-modal {
   max-width: 600px;
 }
 
-.meetingmind-log-entry {
+.meeting-goose-log-entry {
   display: flex;
   flex-direction: column;
   padding: 10px;
@@ -70,38 +70,38 @@
   border-left: 3px solid var(--text-muted);
 }
 
-.meetingmind-log-entry.success {
+.meeting-goose-log-entry.success {
   border-left-color: var(--color-green);
 }
 
-.meetingmind-log-entry.error {
+.meeting-goose-log-entry.error {
   border-left-color: var(--color-red);
 }
 
-.meetingmind-log-entry.warning {
+.meeting-goose-log-entry.warning {
   border-left-color: var(--color-orange);
 }
 
-.meetingmind-log-header {
+.meeting-goose-log-header {
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
 }
 
-.meetingmind-log-action {
+.meeting-goose-log-action {
   font-weight: 600;
 }
 
-.meetingmind-log-time {
+.meeting-goose-log-time {
   color: var(--text-muted);
   font-size: 0.85em;
 }
 
-.meetingmind-log-message {
+.meeting-goose-log-message {
   color: var(--text-normal);
 }
 
-.meetingmind-log-details {
+.meeting-goose-log-details {
   margin-top: 6px;
   padding: 6px 8px;
   background-color: var(--background-primary);
@@ -165,35 +165,35 @@
 }
 
 /* Meeting Notes Styling */
-.meetingmind-meeting-note .summary {
+.meeting-goose-meeting-note .summary {
   background-color: var(--background-secondary);
   padding: 16px;
   border-radius: 8px;
   margin-bottom: 16px;
 }
 
-.meetingmind-meeting-note .action-items {
+.meeting-goose-meeting-note .action-items {
   list-style: none;
   padding-left: 0;
 }
 
-.meetingmind-meeting-note .action-items li {
+.meeting-goose-meeting-note .action-items li {
   padding: 8px 0;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.meetingmind-meeting-note .action-items li:last-child {
+.meeting-goose-meeting-note .action-items li:last-child {
   border-bottom: none;
 }
 
-.meetingmind-meeting-note .decisions {
+.meeting-goose-meeting-note .decisions {
   background-color: var(--background-secondary-alt);
   padding: 12px 16px;
   border-radius: 6px;
   border-left: 3px solid var(--color-accent);
 }
 
-.meetingmind-meeting-note .suggested-links {
+.meeting-goose-meeting-note .suggested-links {
   background-color: var(--background-secondary);
   padding: 12px 16px;
   border-radius: 6px;
@@ -201,7 +201,7 @@
   font-size: 0.9em;
 }
 
-.meetingmind-meeting-note .suggested-links-title {
+.meeting-goose-meeting-note .suggested-links-title {
   color: var(--text-muted);
   font-size: 0.85em;
   margin-bottom: 8px;
@@ -226,11 +226,11 @@
 }
 
 /* Import Progress */
-.meetingmind-import-progress {
+.meeting-goose-import-progress {
   padding: 12px;
 }
 
-.meetingmind-progress-bar {
+.meeting-goose-progress-bar {
   width: 100%;
   height: 20px;
   background-color: var(--background-modifier-border);
@@ -239,14 +239,14 @@
   margin-top: 10px;
 }
 
-.meetingmind-progress-fill {
+.meeting-goose-progress-fill {
   height: 100%;
   background-color: var(--interactive-accent);
   width: var(--progress-width, 0%);
   transition: width 0.3s ease;
 }
 
-.meetingmind-progress-text {
+.meeting-goose-progress-text {
   color: var(--text-muted);
   font-size: 0.85em;
   min-width: 50px;
@@ -254,7 +254,7 @@
 }
 
 /* Connection Status */
-.meetingmind-connection-status {
+.meeting-goose-connection-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -263,188 +263,23 @@
   font-size: 0.85em;
 }
 
-.meetingmind-connection-status.connected {
+.meeting-goose-connection-status.connected {
   background-color: rgba(var(--color-green-rgb), 0.1);
   color: var(--color-green);
 }
 
-.meetingmind-connection-status.disconnected {
+.meeting-goose-connection-status.disconnected {
   background-color: rgba(var(--color-red-rgb), 0.1);
   color: var(--color-red);
 }
 
-.meetingmind-connection-status.syncing {
+.meeting-goose-connection-status.syncing {
   background-color: rgba(var(--color-accent-rgb), 0.1);
   color: var(--color-accent);
 }
 
-/* Feature Badges */
-.meetingmind-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.75em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.meetingmind-badge.pro {
-  background-color: rgba(var(--color-purple-rgb), 0.15);
-  color: var(--color-purple);
-}
-
-.meetingmind-badge.cloud {
-  background-color: rgba(var(--color-cyan-rgb), 0.15);
-  color: var(--color-cyan);
-}
-
-.meetingmind-badge.beta {
-  background-color: rgba(var(--color-orange-rgb), 0.15);
-  color: var(--color-orange);
-}
-
-/* Pro Banner */
-.meetingmind-pro-banner {
-  background: linear-gradient(135deg, 
-    rgba(var(--color-accent-rgb), 0.08) 0%, 
-    rgba(var(--color-purple-rgb), 0.12) 100%);
-  border: 1px solid rgba(var(--color-accent-rgb), 0.2);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.meetingmind-pro-banner-title {
-  font-weight: 600;
-  font-size: 1em;
-  margin-bottom: 6px;
-  color: var(--text-normal);
-}
-
-.meetingmind-pro-banner-desc {
-  font-size: 0.9em;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-}
-
-.meetingmind-pro-banner-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-/* Pro Features List */
-.meetingmind-pro-features {
-  background-color: var(--background-secondary);
-  border-radius: 8px;
-  padding: 16px;
-  margin: 12px 0;
-}
-
-.meetingmind-pro-features p {
-  margin: 0 0 8px 0;
-  color: var(--text-muted);
-  font-size: 0.9em;
-}
-
-.meetingmind-pro-features ul {
-  margin: 0;
-  padding-left: 0;
-  list-style: none;
-}
-
-.meetingmind-pro-features li {
-  padding: 4px 0;
-  font-size: 0.9em;
-}
-
-/* License Section */
-.meetingmind-license-active {
-  color: var(--color-green) !important;
-}
-
-.meetingmind-upgrade-section {
-  background-color: var(--background-secondary);
-  border-radius: 12px;
-  padding: 20px;
-  margin-top: 16px;
-}
-
-.meetingmind-upgrade-section h4 {
-  margin: 0 0 12px 0;
-  color: var(--text-normal);
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 1.1em;
-}
-
-.meetingmind-price {
-  margin-bottom: 16px;
-}
-
-.meetingmind-price-amount {
-  font-size: 1.8em;
-  font-weight: 700;
-  color: var(--color-accent);
-}
-
-.meetingmind-price-label {
-  color: var(--text-muted);
-  font-size: 0.9em;
-}
-
-.meetingmind-upgrade-benefits p {
-  margin: 0 0 8px 0;
-  color: var(--text-muted);
-  font-size: 0.85em;
-}
-
-.meetingmind-upgrade-benefits ul {
-  margin: 0 0 16px 0;
-  padding-left: 0;
-  list-style: none;
-}
-
-.meetingmind-upgrade-benefits li {
-  padding: 6px 0;
-  font-size: 0.95em;
-}
-
-.meetingmind-free-note {
-  background-color: var(--background-primary);
-  border-radius: 6px;
-  padding: 12px;
-  margin: 12px 0;
-}
-
-.meetingmind-free-note p {
-  margin: 0;
-  color: var(--text-normal);
-  font-size: 0.9em;
-}
-
-.meetingmind-license-thanks {
-  background: linear-gradient(135deg, 
-    rgba(var(--color-green-rgb), 0.08) 0%, 
-    rgba(var(--color-cyan-rgb), 0.08) 100%);
-  border-radius: 8px;
-  padding: 16px;
-  margin-top: 12px;
-}
-
-.meetingmind-license-thanks p {
-  margin: 0;
-  font-size: 0.95em;
-}
-
-.meetingmind-supporter-note {
-  margin-top: 8px !important;
-  color: var(--text-muted);
-  font-size: 0.9em !important;
-}
-
 /* Otter.ai Export Guide */
-.meetingmind-otter-guide {
+.meeting-goose-otter-guide {
   background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 16px;
@@ -452,7 +287,7 @@
   border-left: 3px solid var(--color-accent);
 }
 
-.meetingmind-otter-guide h4 {
+.meeting-goose-otter-guide h4 {
   margin: 0 0 8px 0;
   font-size: 1em;
   color: var(--text-normal);
@@ -460,24 +295,24 @@
   letter-spacing: normal;
 }
 
-.meetingmind-otter-steps {
+.meeting-goose-otter-steps {
   margin: 12px 0;
   padding-left: 20px;
 }
 
-.meetingmind-otter-steps li {
+.meeting-goose-otter-steps li {
   padding: 4px 0;
   font-size: 0.9em;
   color: var(--text-normal);
 }
 
-.meetingmind-otter-tip {
+.meeting-goose-otter-tip {
   margin-top: 12px !important;
   color: var(--color-green) !important;
   font-weight: 500;
 }
 
-.meetingmind-api-key-input {
+.meeting-goose-api-key-input {
   width: 300px;
 }
 

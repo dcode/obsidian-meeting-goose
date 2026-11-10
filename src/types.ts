@@ -1,5 +1,5 @@
 /**
- * MeetingMind Type Definitions
+ * Obsidian Meeting Goose type definitions
  * Based on the PRD technical data structures
  */
 
@@ -101,9 +101,8 @@ export interface SyncStatus {
   message?: string;
 }
 
-export type AIProvider = 'claude' | 'openai' | 'disabled';
 
-export interface MeetingMindSettings {
+export interface MeetingGooseSettings {
   // Otter.ai settings (legacy - kept for migration)
   otterEnabled: boolean;
   otterAccessToken: string;
@@ -134,10 +133,8 @@ export interface MeetingMindSettings {
   
   // AI settings
   aiEnabled: boolean;
-  aiProvider: AIProvider;
-  aiModel: string;
-  claudeApiKey: string;
-  openaiApiKey: string;
+  acpAgentCommand: string; // ACP agent binary, e.g. "goose"
+  acpAgentArgs: string; // arguments, e.g. "acp"
   enableSummary: boolean;
   enableActionItems: boolean;
   enableDecisions: boolean;
@@ -154,7 +151,7 @@ export interface MeetingMindSettings {
   peopleFolder: string;
   updateExistingParticipants: boolean;
   
-  // Entity extraction settings (Pro)
+  // Entity extraction settings
   autoExtractEntities: boolean;
   entityIssuesFolder: string;
   entityUpdatesFolder: string; // Deprecated but kept for migration
@@ -164,15 +161,11 @@ export interface MeetingMindSettings {
   issueArchiveDays: number; // Days before archiving resolved issues
   enrichManualNotes: boolean; // Whether to enrich manually-created notes (default: false)
   
-  // License settings
-  licenseStatus: 'free' | 'pro' | 'supporter';
-  licenseExpiry: string;
-  
   // Processed transcripts (for deduplication)
   processedHashes: string[];
 }
 
-export const DEFAULT_SETTINGS: MeetingMindSettings = {
+export const DEFAULT_SETTINGS: MeetingGooseSettings = {
   otterEnabled: false,
   otterAccessToken: '',
   otterRefreshToken: '',
@@ -197,10 +190,8 @@ export const DEFAULT_SETTINGS: MeetingMindSettings = {
   filenameTemplate: 'YYYY-MM-DD Meeting Title',
   
   aiEnabled: false,
-  aiProvider: 'disabled',
-  aiModel: '',
-  claudeApiKey: '',
-  openaiApiKey: '',
+  acpAgentCommand: 'goose',
+  acpAgentArgs: 'acp',
   enableSummary: true,
   enableActionItems: true,
   enableDecisions: true,
@@ -223,10 +214,6 @@ export const DEFAULT_SETTINGS: MeetingMindSettings = {
   enableTopicExtraction: true,
   issueArchiveDays: 30,
   enrichManualNotes: false, // Default: don't touch manually-created notes
-  
-  licenseKey: '',
-  licenseStatus: 'free',
-  licenseExpiry: '',
   
   processedHashes: [],
 };

@@ -143,7 +143,7 @@ export class GranolaService {
     // Initial sync
     void this.sync().catch(() => {});
 
-    console.debug(`MeetingMind: granola sync started (every ${this.syncInterval} minutes)`);
+    console.debug(`Meeting Goose: granola sync started (every ${this.syncInterval} minutes)`);
   }
 
   /**
@@ -154,7 +154,7 @@ export class GranolaService {
       clearInterval(this.syncTimer);
       this.syncTimer = null;
     }
-    console.debug('MeetingMind: granola sync stopped');
+    console.debug('Meeting Goose: granola sync stopped');
   }
 
   /**
@@ -162,7 +162,7 @@ export class GranolaService {
    */
   async sync(): Promise<RawTranscript[]> {
     if (!this.isConnected()) {
-      console.debug('MeetingMind: cannot sync - Granola not configured');
+      console.debug('Meeting Goose: cannot sync - Granola not configured');
       return [];
     }
     if (this.syncing) {
@@ -186,12 +186,12 @@ export class GranolaService {
       this.onSyncTimestamp?.(syncStartedAt);
 
       this.updateStatus('idle', `Synced ${transcripts.length} transcripts from Granola`);
-      console.debug(`MeetingMind: granola sync complete - ${transcripts.length} transcripts`);
+      console.debug(`Meeting Goose: granola sync complete - ${transcripts.length} transcripts`);
 
       return transcripts;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Granola sync failed';
-      console.error('MeetingMind: granola sync failed', errorMessage);
+      console.error('Meeting Goose: granola sync failed', errorMessage);
       this.updateStatus('error', `Granola sync failed: ${errorMessage}`);
       throw error;
     } finally {
@@ -239,7 +239,7 @@ export class GranolaService {
         if (error instanceof GranolaApiError && (error.status === 401 || error.status === 429)) {
           throw error;
         }
-        console.error(`MeetingMind: failed to fetch Granola note ${summary.id}`);
+        console.error(`Meeting Goose: failed to fetch Granola note ${summary.id}`);
       }
     }
 
@@ -280,7 +280,7 @@ export class GranolaService {
   }
 
   /**
-   * Convert a Granola note to MeetingMind RawTranscript format
+   * Convert a Granola note to RawTranscript format
    */
   convertToRawTranscript(note: GranolaNote): RawTranscript {
     const items = note.transcript ?? [];

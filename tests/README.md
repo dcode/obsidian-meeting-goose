@@ -1,23 +1,27 @@
-# MeetingMind Tests
+# Obsidian Meeting Goose Tests
 
-Comprehensive test suite for the MeetingMind Obsidian plugin.
+Comprehensive test suite for the Obsidian Meeting Goose plugin.
 
 ## Overview
 
-This directory contains unit tests, integration tests, and mocks for all major services in the MeetingMind plugin.
+This directory contains unit tests, integration tests, and mocks for all major services in the plugin.
 
 ## Test Structure
 
 ```
 tests/
 ├── __mocks__/
-│   └── obsidian.ts          # Mock Obsidian API
+│   ├── obsidian.ts          # Mock Obsidian API
+│   └── shell-env.ts         # Mock login-shell environment lookup
+├── fixtures/
+│   └── fake-acp-agent.mjs   # Stand-in for `goose acp`, built on the real ACP SDK
 ├── TranscriptParser.test.ts  # Transcript parsing tests
 ├── VaultIndex.test.ts        # Vault indexing tests
 ├── AutoLinker.test.ts        # Auto-linking tests
 ├── NoteGenerator.test.ts     # Note generation tests
-├── AIService.test.ts         # AI service tests
-├── LicenseService.test.ts    # License validation tests
+├── AIService.test.ts         # Prompt building and reply parsing (fake agent)
+├── ACPService.test.ts        # ACP client against the fake agent process
+├── GranolaService.test.ts    # Granola sync tests
 ├── integration.test.ts       # End-to-end integration tests
 └── README.md                 # This file
 ```
@@ -100,17 +104,17 @@ The test suite covers:
 - ✅ Edge cases
 
 ### AIService
-- ✅ Configuration validation
-- ✅ Provider support (Claude, OpenAI)
-- ✅ Feature toggles
+- ✅ Prompt construction and feature toggles
+- ✅ Reply parsing (enrichment, participant insights, entities, status updates)
+- ✅ Long-transcript chunking and merging
 - ✅ Error handling
 - ✅ Tag suggestions
 
-### LicenseService
-- ✅ License validation
-- ✅ Feature access control
-- ✅ Pro tier detection
-- ✅ Free tier limitations
+### ACPService
+- ✅ Spawning the agent and the ACP handshake
+- ✅ One session per prompt, concurrent prompts, process reuse and restart
+- ✅ Tool permission requests are declined
+- ✅ Missing binary, crash, timeout, and protocol mismatch errors
 
 ### Integration Tests
 - ✅ End-to-end transcript processing

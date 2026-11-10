@@ -1,35 +1,36 @@
 /**
  * AIService - AI-powered enrichment for meeting transcripts
- * Supports Claude (Anthropic) and GPT-4 (OpenAI)
+ *
+ * Builds the prompts and parses the replies. The prompts themselves are run by
+ * a local ACP agent (Goose by default) through a PromptRunner.
  */
 
-import { requestUrl, RequestUrlResponse } from 'obsidian';
-import { AIEnrichment, AIProvider, RawTranscript, TranscriptSegment, ParticipantInsight, EntityExtraction, Entity, EntityStatusUpdate } from '../types';
-
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+import { AIEnrichment, RawTranscript, TranscriptSegment, ParticipantInsight, EntityExtraction, Entity, EntityStatusUpdate } from '../types';
+import type { PromptRunner } from './ACPService';
 
 // Token limits for chunking (approximate, being conservative)
 const MAX_TOKENS_PER_CHUNK = 30000; // ~120KB of text
 const CHARS_PER_TOKEN = 4; // Rough estimate
 
+export interface AIFeatureOptions {
+  enableSummary: boolean;
+  enableActionItems: boolean;
+  enableDecisions: boolean;
+  enableTagSuggestions: boolean;
+}
+
 export class AIService {
-  private provider: AIProvider;
-  private claudeApiKey: string;
-  private openaiApiKey: string;
+  private readonly runner: PromptRunner;
+  private enabled: boolean;
   private enableSummary: boolean;
   private enableActionItems: boolean;
   private enableDecisions: boolean;
   private enableTagSuggestions: boolean;
   private existingTags: string[];
   
-  private model: string;
-  
-  constructor() {
-    this.provider = 'disabled';
-    this.model = '';
-    this.claudeApiKey = '';
-    this.openaiApiKey = '';
+  constructor(runner: PromptRunner) {
+    this.runner = runner;
+    this.enabled = false;
     this.enableSummary = true;
     this.enableActionItems = true;
     this.enableDecisions = true;
@@ -40,22 +41,8 @@ export class AIService {
   /**
    * Configure the AI service
    */
-  configure(
-    provider: AIProvider,
-    claudeApiKey: string,
-    openaiApiKey: string,
-    options: {
-      enableSummary: boolean;
-      enableActionItems: boolean;
-      enableDecisions: boolean;
-      enableTagSuggestions: boolean;
-      model?: string;
-    }
-  ): void {
-    this.provider = provider;
-    this.model = options.model || '';
-    this.claudeApiKey = claudeApiKey;
-    this.openaiApiKey = openaiApiKey;
+  configure(enabled: boolean, options: AIFeatureOptions): void {
+    this.enabled = enabled;
     this.enableSummary = options.enableSummary;
     this.enableActionItems = options.enableActionItems;
     this.enableDecisions = options.enableDecisions;
@@ -70,13 +57,10 @@ export class AIService {
   }
   
   /**
-   * Check if AI is enabled and configured
+   * Check if AI enrichment is turned on
    */
   isEnabled(): boolean {
-    if (this.provider === 'disabled') return false;
-    if (this.provider === 'claude' && !this.claudeApiKey) return false;
-    if (this.provider === 'openai' && !this.openaiApiKey) return false;
-    return true;
+    return this.enabled;
   }
   
   /**
@@ -109,7 +93,7 @@ export class AIService {
           enrichment.participantInsights = insights;
         }
       } catch (error) {
-        console.error('MeetingMind: failed to generate participant insights', error);
+        console.error('Meeting Goose: failed to generate participant insights', error);
         // Continue without participant insights
       }
     }
@@ -159,19 +143,11 @@ TRANSCRIPT:
 ${transcriptText}`;
 
     try {
-      let response: string;
-      
-      if (this.provider === 'claude') {
-        response = await this.callClaude(prompt);
-      } else if (this.provider === 'openai') {
-        response = await this.callOpenAI(prompt);
-      } else {
-        return null;
-      }
+      const response = await this.runner.sendPrompt(prompt);
       
       return this.parseParticipantInsights(response);
     } catch (error) {
-      console.error('MeetingMind: failed to generate participant insights', error);
+      console.error('Meeting Goose: failed to generate participant insights', error);
       return null;
     }
   }
@@ -293,7 +269,7 @@ ${transcriptText}`;
         sentiment: p.sentiment || undefined,
       }));
     } catch (error) {
-      console.error('MeetingMind: failed to parse participant insights', error);
+      console.error('Meeting Goose: failed to parse participant insights', error);
       return [];
     }
   }
@@ -353,19 +329,11 @@ TRANSCRIPT:
 ${transcriptText}`;
 
     try {
-      let response: string;
-      
-      if (this.provider === 'claude') {
-        response = await this.callClaude(prompt);
-      } else if (this.provider === 'openai') {
-        response = await this.callOpenAI(prompt);
-      } else {
-        return null;
-      }
+      const response = await this.runner.sendPrompt(prompt);
       
       return this.parseEntityExtraction(response);
     } catch (error) {
-      console.error('MeetingMind: failed to extract entities', error);
+      console.error('Meeting Goose: failed to extract entities', error);
       return null;
     }
   }
@@ -417,7 +385,7 @@ ${transcriptText}`;
         topics: (data.topics || []).map((item) => parseEntity(item, 'topic')),
       };
     } catch (error) {
-      console.error('MeetingMind: failed to parse entity extraction', error);
+      console.error('Meeting Goose: failed to parse entity extraction', error);
       return {
         issues: [],
         updates: [],
@@ -466,19 +434,12 @@ INSTRUCTIONS:
 Return ONLY the synthesized description text, no JSON or extra formatting.`;
 
     try {
-      let response: string;
-      if (this.provider === 'claude') {
-        response = await this.callClaude(prompt);
-      } else if (this.provider === 'openai') {
-        response = await this.callOpenAI(prompt);
-      } else {
-        return null;
-      }
+      const response = await this.runner.sendPrompt(prompt);
       
       // Clean up the response - remove any quotes or extra whitespace
       return response.trim().replace(/^["']|["']$/g, '');
     } catch (error) {
-      console.error('MeetingMind: failed to synthesize description', error);
+      console.error('Meeting Goose: failed to synthesize description', error);
       return null;
     }
   }
@@ -517,18 +478,11 @@ INSTRUCTIONS:
 Return ONLY the synthesized "About" text, no JSON or extra formatting.`;
 
     try {
-      let response: string;
-      if (this.provider === 'claude') {
-        response = await this.callClaude(prompt);
-      } else if (this.provider === 'openai') {
-        response = await this.callOpenAI(prompt);
-      } else {
-        return null;
-      }
+      const response = await this.runner.sendPrompt(prompt);
       
       return response.trim().replace(/^["']|["']$/g, '');
     } catch (error) {
-      console.error('MeetingMind: failed to synthesize person about', error);
+      console.error('Meeting Goose: failed to synthesize person about', error);
       return null;
     }
   }
@@ -626,19 +580,11 @@ Return ONLY the synthesized "About" text, no JSON or extra formatting.`;
     const prompt = this.buildPrompt(transcriptText);
     
     try {
-      let response: string;
-      
-      if (this.provider === 'claude') {
-        response = await this.callClaude(prompt);
-      } else if (this.provider === 'openai') {
-        response = await this.callOpenAI(prompt);
-      } else {
-        return null;
-      }
+      const response = await this.runner.sendPrompt(prompt);
       
       return this.parseResponse(response);
     } catch (error) {
-      console.error('MeetingMind: AI processing failed', error);
+      console.error('Meeting Goose: AI processing failed', error);
       throw error;
     }
   }
@@ -715,90 +661,6 @@ ${transcriptText}`;
   }
   
   /**
-   * Call Claude API
-   */
-  private async callClaude(prompt: string): Promise<string> {
-    try {
-      const response: RequestUrlResponse = await requestUrl({
-        url: CLAUDE_API_URL,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.claudeApiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: this.model || 'claude-opus-4-8',
-          max_tokens: 4096,
-          messages: [
-            {
-              role: 'user' as const,
-              content: prompt,
-            },
-          ],
-        } as Record<string, unknown>),
-      });
-      
-      if (response.status !== 200) {
-        const error = response.json;
-        console.error('Claude API response:', response.status, error);
-        const errorMessage = (error && typeof error === 'object' && 'error' in error && error.error && typeof error.error === 'object' && 'message' in error.error && typeof error.error.message === 'string') 
-          ? error.error.message 
-          : (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string')
-          ? error.message
-          : String(response.status);
-        throw new Error(`Claude API error: ${errorMessage}`);
-      }
-      
-      const data = response.json;
-      return data.content[0].text;
-    } catch (error: unknown) {
-      console.error('Claude API call failed:', error);
-      // Re-throw with more context
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error(`Claude API request failed: ${String(error)}`);
-    }
-  }
-  
-  /**
-   * Call OpenAI API
-   */
-  private async callOpenAI(prompt: string): Promise<string> {
-    const response: RequestUrlResponse = await requestUrl({
-      url: OPENAI_API_URL,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model || 'gpt-4o',
-        messages: [
-          {
-            role: 'user' as const,
-            content: prompt,
-          },
-        ],
-        max_tokens: 4096,
-        response_format: { type: 'json_object' },
-      } as Record<string, unknown>),
-    });
-    
-    if (response.status !== 200) {
-      const error = response.json;
-      const errorMessage = (error && typeof error === 'object' && 'error' in error && error.error && typeof error.error === 'object' && 'message' in error.error && typeof error.error.message === 'string')
-        ? error.error.message
-        : String(response.status);
-      throw new Error(`OpenAI API error: ${errorMessage}`);
-    }
-    
-    const data = response.json;
-    return data.choices[0].message.content;
-  }
-  
-  /**
    * Parse AI response into enrichment object
    */
   private parseResponse(response: string): AIEnrichment {
@@ -830,7 +692,7 @@ ${transcriptText}`;
         ),
       };
     } catch (error) {
-      console.error('MeetingMind: failed to parse AI response', error, response);
+      console.error('Meeting Goose: failed to parse AI response', error, response);
       return {
         summary: '',
         actionItems: [],
@@ -858,23 +720,15 @@ ${transcriptText}`;
   }
   
   /**
-   * Test API connection
+   * Check that the agent starts and answers a prompt
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
-    if (!this.isEnabled()) {
-      return { success: false, message: 'AI is not configured' };
-    }
-    
     try {
-      const testPrompt = 'Return exactly: {"test": "success"}';
-      
-      if (this.provider === 'claude') {
-        await this.callClaude(testPrompt);
-      } else if (this.provider === 'openai') {
-        await this.callOpenAI(testPrompt);
+      const reply = await this.runner.sendPrompt('Reply with the single word: ready');
+      if (!reply.trim()) {
+        return { success: false, message: 'The agent returned an empty reply' };
       }
-      
-      return { success: true, message: 'Connection successful!' };
+      return { success: true, message: 'Agent responded' };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Connection failed';
       return { success: false, message: errorMessage };
@@ -926,19 +780,11 @@ TRANSCRIPT:
 ${transcriptText}`;
 
     try {
-      let response: string;
-      
-      if (this.provider === 'claude') {
-        response = await this.callClaude(prompt);
-      } else if (this.provider === 'openai') {
-        response = await this.callOpenAI(prompt);
-      } else {
-        return [];
-      }
+      const response = await this.runner.sendPrompt(prompt);
       
       return this.parseEntityStatusUpdates(response);
     } catch (error) {
-      console.error('MeetingMind: failed to analyze entity status changes', error);
+      console.error('Meeting Goose: failed to analyze entity status changes', error);
       return [];
     }
   }
@@ -990,7 +836,7 @@ ${transcriptText}`;
       
       return updates;
     } catch (error) {
-      console.error('MeetingMind: failed to parse entity status updates', error);
+      console.error('Meeting Goose: failed to parse entity status updates', error);
       return [];
     }
   }
