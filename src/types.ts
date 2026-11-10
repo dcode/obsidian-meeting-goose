@@ -165,7 +165,6 @@ export interface MeetingMindSettings {
   enrichManualNotes: boolean; // Whether to enrich manually-created notes (default: false)
   
   // License settings
-  licenseKey: string;
   licenseStatus: 'free' | 'pro' | 'supporter';
   licenseExpiry: string;
   

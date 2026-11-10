@@ -57,8 +57,6 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
     // Entity Extraction Section
     this.createEntitySection(containerEl);
     
-    // License Section
-    this.createLicenseSection(containerEl);
   }
   
   /**
@@ -383,7 +381,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
       .setHeading();
     
     // Check license status
-    const hasAILicense = this.plugin.licenseService.hasFeature('aiEnrichment');
+    const hasAILicense = true;
     
     // Show upgrade banner if no license
     if (!hasAILicense) {
@@ -759,7 +757,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
       .setName('Entity extraction (pro)')
       .setHeading();
     
-    const isPro = this.plugin.licenseService.isPro();
+    const isPro = true;
     
     if (!isPro) {
       const upgradeNote = containerEl.createDiv({ cls: 'meetingmind-pro-note' });
@@ -864,116 +862,4 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
   /**
    * Create License section
    */
-  private createLicenseSection(containerEl: HTMLElement): void {
-    new Setting(containerEl)
-      .setName('License')
-      .setHeading();
-    
-    const licenseInfo = this.plugin.licenseService.getLicenseInfo();
-    const statusText = this.plugin.licenseService.getStatusText();
-    
-    // License status display
-    const statusSetting = new Setting(containerEl)
-      .setName('License status')
-      .setDesc(statusText);
-    
-    // Add status indicator
-    if (licenseInfo.status === 'pro' || licenseInfo.status === 'supporter') {
-      statusSetting.descEl.addClass('meetingmind-license-active');
-    }
-    
-    // License key input
-    new Setting(containerEl)
-      .setName('License key')
-      .setDesc('Enter your license key from Gumroad.')
-      .addText(text => text
-        .setPlaceholder('Paste your Gumroad license key.')
-        .setValue(this.plugin.settings.licenseKey)
-        .onChange(async (value) => {
-          this.plugin.settings.licenseKey = value;
-          await this.plugin.saveSettings();
-        })
-      )
-      .addButton(button => button
-        .setButtonText('Activate')
-        .onClick(async () => {
-          button.setButtonText('Validating...');
-          button.setDisabled(true);
-          
-          try {
-            const result = await this.plugin.licenseService.setLicenseKey(
-              this.plugin.settings.licenseKey
-            );
-            
-            // Update settings with validation result
-            this.plugin.settings.licenseStatus = result.status;
-            await this.plugin.saveSettings();
-            
-            if (result.status === 'pro' || result.status === 'supporter') {
-              new Notice(`✓ ${result.status === 'supporter' ? 'Supporter' : 'Pro'} license activated!`);
-            } else if (this.plugin.settings.licenseKey) {
-              new Notice('Invalid license key. Please check and try again.');
-            } else {
-              new Notice('License cleared - free tier active');
-            }
-          } catch {
-            new Notice('License validation failed. Please try again.');
-          }
-          
-          button.setButtonText('Activate');
-          button.setDisabled(false);
-          this.display();
-        })
-      );
-    
-    // Show different content based on license status
-    if (!this.plugin.licenseService.isPro()) {
-      // Free tier - show upgrade options
-      const upgradeContainer = containerEl.createDiv({ cls: 'meetingmind-upgrade-section' });
-      
-      new Setting(upgradeContainer)
-        .setName('Upgrade to pro')
-        .setHeading();
-      
-      const priceEl = upgradeContainer.createDiv({ cls: 'meetingmind-price' });
-      priceEl.createEl('span', { text: '$39', cls: 'meetingmind-price-amount' });
-      priceEl.createEl('span', { text: ' One-time payment', cls: 'meetingmind-price-label' });
-      
-      const benefitsEl = upgradeContainer.createDiv({ cls: 'meetingmind-upgrade-benefits' });
-      benefitsEl.createEl('p', { text: 'Unlock AI-powered features:' });
-      const list = benefitsEl.createEl('ul');
-      list.createEl('li', { text: '🤖 AI summaries, action items & decisions' });
-      list.createEl('li', { text: '👤 smart participant insights' });
-      list.createEl('li', { text: '🏷️ intelligent tag suggestions' });
-      list.createEl('li', { text: '♾️ lifetime license - pay once, use forever' });
-      list.createEl('li', { text: '🔑 bring your own API key' });
-      
-      const freeEl = benefitsEl.createDiv({ cls: 'meetingmind-free-note' });
-      freeEl.createEl('p', { 
-        text: '✓ everything else is free: transcript parsing, auto-linking, folder watcher, and participant tracking.'
-      });
-      
-      new Setting(upgradeContainer)
-        .addButton(button => button
-          .setButtonText('Get pro license')
-          .setCta()
-          .onClick(() => {
-            window.open('https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=obsidian_plugin&utm_medium=settings_license_button&utm_campaign=pro', '_blank');
-          })
-        );
-    } else {
-      // Pro/Supporter - show thank you
-      const thankYou = containerEl.createDiv({ cls: 'meetingmind-license-thanks' });
-      thankYou.createEl('p', { 
-        text: '🎉 thank you for supporting us! All AI features are unlocked.'
-      });
-      
-      if (this.plugin.licenseService.isSupporter()) {
-        thankYou.createEl('p', { 
-          text: '⭐ as a supporter, you also get priority support and early access to new features.',
-          cls: 'meetingmind-supporter-note'
-        });
-      }
-    }
-  }
 }

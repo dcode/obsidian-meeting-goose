@@ -35,7 +35,6 @@ import { GranolaService } from './services/GranolaService';
 import { NoteGenerator } from './services/NoteGenerator';
 import { ParticipantService } from './services/ParticipantService';
 import { EntityService } from './services/EntityService';
-import { LicenseService } from './services/LicenseService';
 import { StatsService } from './services/StatsService';
 import { MeetingMindSettingsTab } from './ui/SettingsTab';
 import { SyncLogModal } from './ui/SyncLogModal';
@@ -58,8 +57,7 @@ export default class MeetingMindPlugin extends Plugin {
   noteGenerator: NoteGenerator;
   participantService: ParticipantService;
   entityService: EntityService;
-  licenseService: LicenseService;
-  statsService: StatsService;
+    statsService: StatsService;
   
   // UI Elements
   statusBarItem: HTMLElement;
@@ -124,13 +122,11 @@ export default class MeetingMindPlugin extends Plugin {
     this.noteGenerator = new NoteGenerator(this.app);
     this.participantService = new ParticipantService(this.app, this.aiService);
     this.entityService = new EntityService(this.app, this.aiService);
-    this.licenseService = new LicenseService();
-    this.statsService = new StatsService(this.app);
+        this.statsService = new StatsService(this.app);
     
     // Initialize license
     if (this.settings.licenseKey) {
-      await this.licenseService.setLicenseKey(this.settings.licenseKey);
-    }
+          }
     
     // Configure services with current settings
     this.updateAllServices();
@@ -403,7 +399,7 @@ export default class MeetingMindPlugin extends Plugin {
       
       // Step 3: Extract entities (needed before participant processing)
       let entities: EntityExtraction | null = null;
-      const hasAILicense = this.licenseService.hasFeature('aiEnrichment');
+      const hasAILicense = true;
       if (this.settings.autoExtractEntities && hasAILicense && enrichment) {
         entities = await this.aiService.extractEntities(transcript);
         if (entities) {
@@ -458,7 +454,7 @@ export default class MeetingMindPlugin extends Plugin {
       return null;
     }
     
-    const hasAILicense = this.licenseService.hasFeature('aiEnrichment');
+    const hasAILicense = true;
     if (!hasAILicense) {
       console.debug('MeetingMind: AI features require Pro license');
       return null;
@@ -524,7 +520,7 @@ export default class MeetingMindPlugin extends Plugin {
     }
     
     try {
-      const hasInsightsLicense = this.licenseService.hasFeature('participantInsights');
+      const hasInsightsLicense = true;
       const participantInsights = hasInsightsLicense ? enrichment?.participantInsights : undefined;
       
       const result = await this.participantService.processParticipants(
@@ -894,7 +890,7 @@ export default class MeetingMindPlugin extends Plugin {
   async reprocessAllMeetings(): Promise<void> {
     try {
       // Check if AI is enabled and licensed
-      const hasAILicense = this.licenseService.hasFeature('aiEnrichment');
+      const hasAILicense = true;
       
       if (!this.settings.aiEnabled || !this.aiService.isEnabled()) {
         new Notice('Please enable AI enrichment in settings first');
@@ -1130,7 +1126,7 @@ export default class MeetingMindPlugin extends Plugin {
       
       // AI enrichment (if enabled and licensed)
       let enrichment = existingEnrichment;
-      const hasAILicense = this.licenseService.hasFeature('aiEnrichment');
+      const hasAILicense = true;
       
       if (this.settings.aiEnabled && this.aiService.isEnabled() && hasAILicense) {
         try {
