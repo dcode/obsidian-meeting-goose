@@ -8,6 +8,7 @@
  *   crash        exit while handling the prompt
  *   hang         never finish the prompt
  *   refuse       finish the prompt with stopReason "refusal"
+ *   silent       think, but finish without sending any message text
  *   bad-version  claim an unsupported protocol version
  *   env <NAME>   reply with the value of that environment variable
  */
@@ -44,6 +45,14 @@ agent({ name: 'fake-acp-agent' })
         break;
       case 'refuse':
         return { stopReason: 'refusal' };
+      case 'silent':
+        for (const text of ['hmm', 'still thinking']) {
+          await client.notify(methods.client.session.update, {
+            sessionId,
+            update: { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text } },
+          });
+        }
+        break;
       case 'env':
         await say(client, sessionId, process.env[process.argv[3] ?? ''] ?? '(unset)');
         break;
