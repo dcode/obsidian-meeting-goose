@@ -1,5 +1,5 @@
 /**
- * MeetingMind - Obsidian Plugin
+ * Obsidian Meeting Goose - Obsidian plugin
  * Automatically import meeting transcripts with AI-powered enrichment and auto-linking
  */
 
@@ -14,7 +14,7 @@ import {
 } from 'obsidian';
 
 import { 
-  MeetingMindSettings, 
+  MeetingGooseSettings, 
   DEFAULT_SETTINGS, 
   RawTranscript, 
   ProcessedMeeting,
@@ -28,6 +28,7 @@ import { TranscriptParser } from './services/TranscriptParser';
 import { VaultIndexService } from './services/VaultIndex';
 import { AutoLinker } from './services/AutoLinker';
 import { AIService } from './services/AIService';
+import { ACPService, parseAgentArgs } from './services/ACPService';
 import { FolderWatcher } from './services/FolderWatcher';
 import { OtterService } from './services/OtterService';
 import { FirefliesService } from './services/FirefliesService';
@@ -36,19 +37,20 @@ import { NoteGenerator } from './services/NoteGenerator';
 import { ParticipantService } from './services/ParticipantService';
 import { EntityService } from './services/EntityService';
 import { StatsService } from './services/StatsService';
-import { MeetingMindSettingsTab } from './ui/SettingsTab';
+import { MeetingGooseSettingsTab } from './ui/SettingsTab';
 import { SyncLogModal } from './ui/SyncLogModal';
 
 // Custom icon for status bar
 const SYNC_ICON = `<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"><circle cx="50" cy="50" r="40"/><path d="M50 25v25l15 15"/></svg>`;
 
-export default class MeetingMindPlugin extends Plugin {
-  settings: MeetingMindSettings;
+export default class MeetingGoosePlugin extends Plugin {
+  settings: MeetingGooseSettings;
   
   // Services
   transcriptParser: TranscriptParser;
   vaultIndex: VaultIndexService;
   autoLinker: AutoLinker;
+  acpService: ACPService;
   aiService: AIService;
   folderWatcher: FolderWatcher;
   otterService: OtterService;
@@ -57,7 +59,7 @@ export default class MeetingMindPlugin extends Plugin {
   noteGenerator: NoteGenerator;
   participantService: ParticipantService;
   entityService: EntityService;
-    statsService: StatsService;
+  statsService: StatsService;
   
   // UI Elements
   statusBarItem: HTMLElement;
@@ -67,7 +69,7 @@ export default class MeetingMindPlugin extends Plugin {
   private maxLogs = 100;
   
   async onload(): Promise<void> {
-    console.debug('MeetingMind: loading plugin');
+    console.debug('Meeting Goose: loading plugin');
     
     // Load settings
     await this.loadSettings();
@@ -79,7 +81,7 @@ export default class MeetingMindPlugin extends Plugin {
     addIcon('meeting-sync', SYNC_ICON);
     
     // Add settings tab
-    this.addSettingTab(new MeetingMindSettingsTab(this.app, this));
+    this.addSettingTab(new MeetingGooseSettingsTab(this.app, this));
     
     // Add status bar item
     this.statusBarItem = this.addStatusBarItem();
@@ -94,17 +96,18 @@ export default class MeetingMindPlugin extends Plugin {
     // Start services
     this.startServices();
     
-    console.debug('MeetingMind: plugin loaded successfully');
+    console.debug('Meeting Goose: plugin loaded successfully');
   }
   
   onunload(): void {
-    console.debug('MeetingMind: unloading plugin');
+    console.debug('Meeting Goose: unloading plugin');
     
     // Clean up services
     this.folderWatcher?.destroy();
     this.otterService?.destroy();
     this.firefliesService?.destroy();
     this.granolaService?.destroy();
+    this.acpService?.disconnect();
   }
   
   /**
@@ -114,7 +117,8 @@ export default class MeetingMindPlugin extends Plugin {
     this.transcriptParser = new TranscriptParser();
     this.vaultIndex = new VaultIndexService(this.app);
     this.autoLinker = new AutoLinker(this.vaultIndex, this.settings.maxMatchesBeforeSkip);
-    this.aiService = new AIService();
+    this.acpService = new ACPService(undefined, undefined, { clientVersion: this.manifest.version });
+    this.aiService = new AIService(this.acpService);
     this.folderWatcher = new FolderWatcher(this.app);
     this.otterService = new OtterService();
     this.firefliesService = new FirefliesService();
@@ -122,11 +126,7 @@ export default class MeetingMindPlugin extends Plugin {
     this.noteGenerator = new NoteGenerator(this.app);
     this.participantService = new ParticipantService(this.app, this.aiService);
     this.entityService = new EntityService(this.app, this.aiService);
-        this.statsService = new StatsService(this.app);
-    
-    // Initialize license
-    if (this.settings.licenseKey) {
-          }
+    this.statsService = new StatsService(this.app);
     
     // Configure services with current settings
     this.updateAllServices();
@@ -180,11 +180,11 @@ export default class MeetingMindPlugin extends Plugin {
       this.entityService.archiveResolvedIssues(this.settings.issueArchiveDays)
         .then(result => {
           if (result.archived > 0) {
-            console.debug(`MeetingMind: auto-archived ${result.archived} resolved issue(s)`);
+            console.debug(`Meeting Goose: auto-archived ${result.archived} resolved issue(s)`);
           }
         })
         .catch(error => {
-          console.error('MeetingMind: auto-archive failed', error);
+          console.error('Meeting Goose: auto-archive failed', error);
         });
     }
     
@@ -375,7 +375,7 @@ export default class MeetingMindPlugin extends Plugin {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.addLog('Import', 'error', `Failed to import ${file.name}`, errorMessage);
-      console.error('MeetingMind: import failed', error);
+      console.error('Meeting Goose: import failed', error);
     }
   }
   
@@ -387,7 +387,7 @@ export default class MeetingMindPlugin extends Plugin {
     try {
       // Check for duplicate (unless skipped for manual imports)
       if (!skipDuplicateCheck && this.isDuplicate(transcript.hash)) {
-        console.debug(`MeetingMind: skipping duplicate transcript ${transcript.title}`);
+        console.debug(`Meeting Goose: skipping duplicate transcript ${transcript.title}`);
         return null;
       }
       
@@ -399,8 +399,7 @@ export default class MeetingMindPlugin extends Plugin {
       
       // Step 3: Extract entities (needed before participant processing)
       let entities: EntityExtraction | null = null;
-      const hasAILicense = true;
-      if (this.settings.autoExtractEntities && hasAILicense && enrichment) {
+      if (this.settings.autoExtractEntities && enrichment) {
         entities = await this.aiService.extractEntities(transcript);
         if (entities) {
           enrichment.entities = entities;
@@ -447,23 +446,17 @@ export default class MeetingMindPlugin extends Plugin {
   // ==================== Transcript Processing Steps ====================
   
   /**
-   * Run AI enrichment on the transcript if enabled and licensed
+   * Run AI enrichment on the transcript if enabled
    */
   private async runAIEnrichment(transcript: RawTranscript): Promise<AIEnrichment | null> {
     if (!this.settings.aiEnabled || !this.aiService.isEnabled()) {
       return null;
     }
     
-    const hasAILicense = true;
-    if (!hasAILicense) {
-      console.debug('MeetingMind: AI features require Pro license');
-      return null;
-    }
-    
     try {
       return await this.aiService.processTranscript(transcript);
     } catch (error) {
-      console.error('MeetingMind: AI enrichment failed', error);
+      console.error('Meeting Goose: AI enrichment failed', error);
       return null; // Continue without AI enrichment
     }
   }
@@ -520,8 +513,7 @@ export default class MeetingMindPlugin extends Plugin {
     }
     
     try {
-      const hasInsightsLicense = true;
-      const participantInsights = hasInsightsLicense ? enrichment?.participantInsights : undefined;
+      const participantInsights = enrichment?.participantInsights;
       
       const result = await this.participantService.processParticipants(
         transcript.participants,
@@ -532,16 +524,16 @@ export default class MeetingMindPlugin extends Plugin {
       );
       
       if (result.created.length > 0) {
-        console.debug(`MeetingMind: created participant notes for: ${result.created.join(', ')}`);
+        console.debug(`Meeting Goose: created participant notes for: ${result.created.join(', ')}`);
         new Notice(`Created notes for: ${result.created.join(', ')}`);
         this.vaultIndex.scheduleIncrementalUpdate();
       }
       
       if (result.updated.length > 0) {
-        console.debug(`MeetingMind: updated participant notes for: ${result.updated.join(', ')}`);
+        console.debug(`Meeting Goose: updated participant notes for: ${result.updated.join(', ')}`);
       }
     } catch (error) {
-      console.error('MeetingMind: failed to process participant notes', error);
+      console.error('Meeting Goose: failed to process participant notes', error);
       // Continue - don't block meeting note creation
     }
   }
@@ -566,7 +558,7 @@ export default class MeetingMindPlugin extends Plugin {
       // Create/update entity notes
       await this.createEntityNotes(transcript, file, entities);
     } catch (error) {
-      console.error('MeetingMind: failed to process entities', error);
+      console.error('Meeting Goose: failed to process entities', error);
       // Continue - don't block meeting note creation
     }
   }
@@ -603,10 +595,10 @@ export default class MeetingMindPlugin extends Plugin {
       }
       
       if (statusUpdates.length > 0) {
-        console.debug(`MeetingMind: updated status for ${statusUpdates.length} entity(ies)`);
+        console.debug(`Meeting Goose: updated status for ${statusUpdates.length} entity(ies)`);
       }
     } catch (error) {
-      console.error('MeetingMind: failed to analyze entity status changes', error);
+      console.error('Meeting Goose: failed to analyze entity status changes', error);
       // Continue - don't block entity extraction
     }
   }
@@ -635,13 +627,13 @@ export default class MeetingMindPlugin extends Plugin {
     );
     
     if (entityResult.created.length > 0) {
-      console.debug(`MeetingMind: created entity notes for: ${entityResult.created.join(', ')}`);
+      console.debug(`Meeting Goose: created entity notes for: ${entityResult.created.join(', ')}`);
       new Notice(`Created notes for: ${entityResult.created.join(', ')}`);
       this.vaultIndex.scheduleIncrementalUpdate();
     }
     
     if (entityResult.updated.length > 0) {
-      console.debug(`MeetingMind: updated entity notes for: ${entityResult.updated.join(', ')}`);
+      console.debug(`Meeting Goose: updated entity notes for: ${entityResult.updated.join(', ')}`);
     }
   }
   
@@ -723,10 +715,10 @@ export default class MeetingMindPlugin extends Plugin {
         const modal = new Modal(this.app);
         modal.titleEl.setText(`Importing ${totalFiles} ${totalFiles === 1 ? 'file' : 'files'}`);
         
-        const progressContainer = modal.contentEl.createDiv({ cls: 'meetingmind-import-progress' });
+        const progressContainer = modal.contentEl.createDiv({ cls: 'meeting-goose-import-progress' });
         const progressText = progressContainer.createEl('p', { text: 'Starting import...' });
-        const progressBar = progressContainer.createDiv({ cls: 'meetingmind-progress-bar' });
-        const progressFill = progressBar.createDiv({ cls: 'meetingmind-progress-fill' });
+        const progressBar = progressContainer.createDiv({ cls: 'meeting-goose-progress-bar' });
+        const progressFill = progressBar.createDiv({ cls: 'meeting-goose-progress-fill' });
         
         modal.open();
         
@@ -756,7 +748,7 @@ export default class MeetingMindPlugin extends Plugin {
           } catch (error: unknown) {
             failCount++;
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`MeetingMind: import failed for ${file.name}`, error);
+            console.error(`Meeting Goose: import failed for ${file.name}`, error);
             
             // Show error in modal
             progressText.setText(`❌ Failed: ${file.name} - ${errorMessage}`);
@@ -812,7 +804,7 @@ export default class MeetingMindPlugin extends Plugin {
       new Notice('Meeting dashboard updated!');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('MeetingMind: dashboard generation failed', error);
+      console.error('Meeting Goose: dashboard generation failed', error);
       new Notice(`Dashboard failed: ${errorMessage}`);
     }
   }
@@ -846,7 +838,7 @@ export default class MeetingMindPlugin extends Plugin {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('MeetingMind: cleanup failed', error);
+      console.error('Meeting Goose: cleanup failed', error);
       new Notice(`Cleanup failed: ${errorMessage}`);
     }
   }
@@ -868,7 +860,7 @@ export default class MeetingMindPlugin extends Plugin {
         new Notice(message);
         
         if (result.errors.length > 0) {
-          console.error('MeetingMind: archive errors:', result.errors);
+          console.error('Meeting Goose: archive errors:', result.errors);
         }
         
         // Rebuild vault index after archiving
@@ -878,27 +870,19 @@ export default class MeetingMindPlugin extends Plugin {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('MeetingMind: archive failed', error);
+      console.error('Meeting Goose: archive failed', error);
       new Notice(`Archive failed: ${errorMessage}`);
     }
   }
   
   /**
    * Reprocess all meetings in the output folder to add AI enrichment
-   * Useful when upgrading from Free to Pro
+   * Useful after turning AI enrichment on for an existing vault
    */
   async reprocessAllMeetings(): Promise<void> {
     try {
-      // Check if AI is enabled and licensed
-      const hasAILicense = true;
-      
       if (!this.settings.aiEnabled || !this.aiService.isEnabled()) {
         new Notice('Please enable AI enrichment in settings first');
-        return;
-      }
-      
-      if (!hasAILicense) {
-        new Notice('Pro license required for AI enrichment');
         return;
       }
       
@@ -936,14 +920,14 @@ export default class MeetingMindPlugin extends Plugin {
           const parsed = this.parseExistingNote(content);
           
           if (!parsed) {
-            console.debug(`MeetingMind: skipping ${file.basename} - not a meeting note`);
+            console.debug(`Meeting Goose: skipping ${file.basename} - not a meeting note`);
             skipped++;
             continue;
           }
           
           // Check if it already has AI enrichment
           if (parsed.existingEnrichment?.summary) {
-            console.debug(`MeetingMind: skipping ${file.basename} - already has AI enrichment`);
+            console.debug(`Meeting Goose: skipping ${file.basename} - already has AI enrichment`);
             skipped++;
             continue;
           }
@@ -956,7 +940,7 @@ export default class MeetingMindPlugin extends Plugin {
           await new Promise(resolve => setTimeout(resolve, 1000));
           
         } catch (error) {
-          console.error(`MeetingMind: failed to reprocess ${file.basename}`, error);
+          console.error(`Meeting Goose: failed to reprocess ${file.basename}`, error);
           failed++;
         }
       }
@@ -982,7 +966,7 @@ export default class MeetingMindPlugin extends Plugin {
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('MeetingMind: batch reprocess failed', error);
+      console.error('Meeting Goose: batch reprocess failed', error);
       new Notice(`Batch reprocess failed: ${errorMessage}`);
     }
   }
@@ -1124,16 +1108,15 @@ export default class MeetingMindPlugin extends Plugin {
       
       const { transcript, existingEnrichment } = parsed;
       
-      // AI enrichment (if enabled and licensed)
+      // AI enrichment (if enabled)
       let enrichment = existingEnrichment;
-      const hasAILicense = true;
       
-      if (this.settings.aiEnabled && this.aiService.isEnabled() && hasAILicense) {
+      if (this.settings.aiEnabled && this.aiService.isEnabled()) {
         try {
           enrichment = await this.aiService.processTranscript(transcript);
           new Notice('AI enrichment complete');
         } catch (error) {
-          console.error('MeetingMind: AI enrichment failed during reprocess', error);
+          console.error('Meeting Goose: AI enrichment failed during reprocess', error);
           new Notice('AI enrichment failed, keeping existing content');
         }
       }
@@ -1178,7 +1161,7 @@ export default class MeetingMindPlugin extends Plugin {
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('MeetingMind: reprocess failed', error);
+      console.error('Meeting Goose: reprocess failed', error);
       new Notice(`Reprocess failed: ${errorMessage}`);
     }
   }
@@ -1319,7 +1302,7 @@ export default class MeetingMindPlugin extends Plugin {
       return { transcript, existingEnrichment };
       
     } catch (error) {
-      console.error('MeetingMind: failed to parse existing note', error);
+      console.error('Meeting Goose: failed to parse existing note', error);
       return null;
     }
   }
@@ -1347,18 +1330,16 @@ export default class MeetingMindPlugin extends Plugin {
   }
   
   updateAIService(): void {
-    this.aiService.configure(
-      this.settings.aiProvider,
-      this.settings.claudeApiKey,
-      this.settings.openaiApiKey,
-      {
-        enableSummary: this.settings.enableSummary,
-        enableActionItems: this.settings.enableActionItems,
-        enableDecisions: this.settings.enableDecisions,
-        enableTagSuggestions: this.settings.enableTagSuggestions,
-        model: this.settings.aiModel,
-      }
+    this.acpService.configure(
+      this.settings.acpAgentCommand,
+      parseAgentArgs(this.settings.acpAgentArgs)
     );
+    this.aiService.configure(this.settings.aiEnabled, {
+      enableSummary: this.settings.enableSummary,
+      enableActionItems: this.settings.enableActionItems,
+      enableDecisions: this.settings.enableDecisions,
+      enableTagSuggestions: this.settings.enableTagSuggestions,
+    });
   }
   
   updateFolderWatcher(): void {
@@ -1471,23 +1452,22 @@ export default class MeetingMindPlugin extends Plugin {
   // ===== Settings =====
   
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stored = ((await this.loadData()) ?? {}) as Record<string, unknown>;
 
-    const modelMigrations: Record<string, string> = {
-      'claude-opus-4-20250514': 'claude-opus-4-8',
-      'claude-sonnet-4-20250514': 'claude-sonnet-4-6',
-      'o3-mini': 'gpt-5.6-sol',
-    };
-    const replacementModel = modelMigrations[this.settings.aiModel];
-    if (replacementModel) {
-      this.settings.aiModel = replacementModel;
-      await this.saveSettings();
+    // Settings from before the move to a local ACP agent. Dropping them also
+    // removes any remote API keys and license keys left in data.json.
+    const legacyKeys = [
+      'aiProvider', 'aiModel', 'claudeApiKey', 'openaiApiKey',
+      'licenseKey', 'licenseStatus', 'licenseExpiry',
+    ];
+    const hadLegacyKeys = legacyKeys.some(key => key in stored);
+    for (const key of legacyKeys) {
+      delete stored[key];
     }
 
-    // The unimplemented "cloud" provider was removed; it already ran on the user's Claude key.
-    if ((this.settings.aiProvider as string) === 'cloud') {
-      this.settings.aiProvider = 'claude';
-      this.settings.aiModel = 'claude-opus-4-8';
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
+
+    if (hadLegacyKeys) {
       await this.saveSettings();
     }
   }

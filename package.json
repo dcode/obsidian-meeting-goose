@@ -1,7 +1,7 @@
 {
-  "name": "meetingmind",
+  "name": "obsidian-meeting-goose",
   "version": "1.2.4",
-  "description": "Automatically import meeting transcripts into your vault with AI-powered enrichment and intelligent auto-linking",
+  "description": "Obsidian plugin that imports meeting transcripts and enriches them with a local Goose agent over the Agent Client Protocol",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -23,16 +23,19 @@
     "check:llms": "node scripts/check-llms.mjs",
     "check:llms:network": "node scripts/check-llms.mjs --network",
     "check:all": "node scripts/check-seo.mjs && node scripts/check-schema.mjs && node scripts/check-llms.mjs",
-    "og:home": "node scripts/render-og-home.mjs"
+    "og:home": "node scripts/render-og-home.mjs",
+    "notices": "node scripts/generate-notices.mjs"
   },
   "keywords": [
     "obsidian",
     "plugin",
     "meeting",
     "transcript",
-    "ai"
+    "ai",
+    "goose",
+    "acp"
   ],
-  "author": "Patrick",
+  "author": "Derek Ditch",
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.11",
@@ -51,7 +54,14 @@
     "typescript-eslint": "^8.50.0"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "0.0.1",
-    "shell-env": "4.0.0"
+    "@agentclientprotocol/sdk": "^2.5.0",
+    "shell-env": "^4.0.3"
+  },
+  "contributors": [
+    "Patrick Tumbucon (original MeetingMind plugin)"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dcode/obsidian-meeting-goose.git"
   }
 }

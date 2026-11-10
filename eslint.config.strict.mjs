@@ -29,7 +29,7 @@ export default tseslint.config(
       'obsidianmd/ui/sentence-case': ['error', {
         enforceCamelCaseLower: true,
         allowAutoFix: true,
-        brands: ['MeetingMind', 'Otter.ai', 'Fireflies.ai', 'Claude', 'OpenAI', 'GPT-4', 'Anthropic', 'Gumroad', 'SRT', 'VTT', 'JSON'],
+        brands: ['Obsidian Meeting Goose', 'Meeting Goose', 'Goose', 'Otter.ai', 'Fireflies.ai', 'Granola', 'SRT', 'VTT', 'JSON'],
         acronyms: ['API', 'AI', 'SRT', 'VTT', 'JSON'],
       }],
 

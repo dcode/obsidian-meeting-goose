@@ -3,8 +3,8 @@
  */
 
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
-import MeetingMindPlugin from '../main';
-import { AIProvider } from '../types';
+import MeetingGoosePlugin from '../main';
+import { DEFAULT_SETTINGS } from '../types';
 
 // Debounce utility for text inputs
 function debounce<T extends (...args: unknown[]) => unknown>(
@@ -18,10 +18,10 @@ function debounce<T extends (...args: unknown[]) => unknown>(
   };
 }
 
-export class MeetingMindSettingsTab extends PluginSettingTab {
-  plugin: MeetingMindPlugin;
+export class MeetingGooseSettingsTab extends PluginSettingTab {
+  plugin: MeetingGoosePlugin;
   
-  constructor(app: App, plugin: MeetingMindPlugin) {
+  constructor(app: App, plugin: MeetingGoosePlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -100,7 +100,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
     }
     
     // Otter.ai export guide
-    const otterGuide = containerEl.createDiv({ cls: 'meetingmind-otter-guide' });
+    const otterGuide = containerEl.createDiv({ cls: 'meeting-goose-otter-guide' });
     new Setting(otterGuide)
       .setName('Otter integration guide')
       .setHeading();
@@ -109,7 +109,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
       text: 'Export your transcripts from Otter and drop them in your watched folder.',
       cls: 'setting-item-description'
     });
-    const steps = otterGuide.createEl('ol', { cls: 'meetingmind-otter-steps' });
+    const steps = otterGuide.createEl('ol', { cls: 'meeting-goose-otter-steps' });
     // eslint-disable-next-line obsidianmd/ui/sentence-case
     steps.createEl('li', { text: 'Open your transcript in Otter.' });
     steps.createEl('li', { text: 'Click the "..." menu → export.' });
@@ -118,7 +118,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
     otterGuide.createEl('p', {
       // eslint-disable-next-line obsidianmd/ui/sentence-case
       text: 'Your Otter transcripts will be automatically imported and processed!',
-      cls: 'setting-item-description meetingmind-otter-tip'
+      cls: 'setting-item-description meeting-goose-otter-tip'
     });
     
     // Fireflies.ai Integration
@@ -155,7 +155,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
               this.plugin.updateFirefliesService();
             });
           text.inputEl.type = 'password';
-          text.inputEl.addClass('meetingmind-api-key-input');
+          text.inputEl.addClass('meeting-goose-api-key-input');
         });
       
       // Test connection button
@@ -262,7 +262,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
               this.plugin.updateGranolaService();
             });
           text.inputEl.type = 'password';
-          text.inputEl.addClass('meetingmind-api-key-input');
+          text.inputEl.addClass('meeting-goose-api-key-input');
           // Start syncing once the key is entered, not on every keystroke
           text.inputEl.addEventListener('blur', () => this.plugin.restartGranolaSync());
         });
@@ -380,43 +380,12 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
       .setName('AI enrichment')
       .setHeading();
     
-    // Check license status
-    const hasAILicense = true;
-    
-    // Show upgrade banner if no license
-    if (!hasAILicense) {
-      const banner = containerEl.createDiv({ cls: 'meetingmind-pro-banner' });
-      banner.createEl('div', { 
-        text: 'AI features require pro license!', 
-        cls: 'meetingmind-pro-banner-title' 
-      });
-      banner.createEl('div', { 
-        text: 'Get AI-powered summaries, action items, decisions, and smart participant insights.', 
-        cls: 'meetingmind-pro-banner-desc' 
-      });
-      
-      const buttonContainer = banner.createDiv({ cls: 'meetingmind-pro-banner-buttons' });
-      const upgradeBtn = buttonContainer.createEl('button', { 
-        text: 'Upgrade for $39 (lifetime)', 
-        cls: 'mod-cta' 
-      });
-      upgradeBtn.addEventListener('click', () => {
-        window.open('https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=obsidian_plugin&utm_medium=settings_ai_banner&utm_campaign=pro', '_blank');
-      });
-    }
-    
-    // Enable AI toggle
-    const aiToggleSetting = new Setting(containerEl)
+    new Setting(containerEl)
       .setName('Enable AI enrichment')
-      .setDesc('Use AI to generate summaries, extract action items, and suggest tags')
+      .setDesc('Use a local agent to generate summaries, extract action items, and suggest tags')
       .addToggle(toggle => toggle
         .setValue(this.plugin.settings.aiEnabled)
         .onChange(async (value) => {
-          if (value && !hasAILicense) {
-            this.plugin.licenseService.showUpgradeNotice('AI enrichment');
-            toggle.setValue(false);
-            return;
-          }
           this.plugin.settings.aiEnabled = value;
           await this.plugin.saveSettings();
           this.plugin.updateAIService();
@@ -424,123 +393,59 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
         })
       );
     
-    // Visually indicate if locked
-    if (!hasAILicense) {
-      aiToggleSetting.setDesc('Use AI to generate summaries, extract action items, and suggest tags (pro required)');
-    }
-    
-    if (this.plugin.settings.aiEnabled && hasAILicense) {
-      // AI Provider
+    if (this.plugin.settings.aiEnabled) {
+      const debouncedAgentUpdate = debounce(async () => {
+        await this.plugin.saveSettings();
+        this.plugin.updateAIService();
+      }, 1000);
+      
       new Setting(containerEl)
-        .setName('AI provider')
-        .setDesc('Choose which AI service to use for processing')
-        .addDropdown(dropdown => dropdown
-          .addOption('claude', 'Claude')
-          .addOption('openai', 'OpenAI')
-          .setValue(this.plugin.settings.aiProvider)
-          .onChange(async (value) => {
-            this.plugin.settings.aiProvider = value as AIProvider;
-            // Reset model to default for the new provider
-            if (value === 'claude') {
-              this.plugin.settings.aiModel = 'claude-opus-4-8';
-            } else if (value === 'openai') {
-              this.plugin.settings.aiModel = 'gpt-4o';
-            } else {
-              this.plugin.settings.aiModel = '';
-            }
-            await this.plugin.saveSettings();
-            this.plugin.updateAIService();
-            this.display();
+        .setName('Agent command')
+        .setDesc('Program that speaks the agent client protocol. Use a full path if it is not found.')
+        .addText(text => text
+          .setPlaceholder(DEFAULT_SETTINGS.acpAgentCommand)
+          .setValue(this.plugin.settings.acpAgentCommand)
+          .onChange((value) => {
+            this.plugin.settings.acpAgentCommand = value.trim() || DEFAULT_SETTINGS.acpAgentCommand;
+            debouncedAgentUpdate();
           })
         );
       
-      // Claude API Key + Model
-      if (this.plugin.settings.aiProvider === 'claude') {
-        new Setting(containerEl)
-          .setName('Claude API key')
-          .setDesc('Your Anthropic API key.')
-          .addText(text => {
-            text
-              .setPlaceholder('Sk-ant-...')
-              .setValue(this.plugin.settings.claudeApiKey)
-              .onChange(async (value) => {
-                this.plugin.settings.claudeApiKey = value;
-                await this.plugin.saveSettings();
-                this.plugin.updateAIService();
-              });
-            text.inputEl.type = 'password';
-          });
-        
-        new Setting(containerEl)
-          .setName('Claude model')
-          .setDesc('Choose which Claude model to use for processing.')
-          .addDropdown(dropdown => dropdown
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .addOption('claude-opus-4-8', 'Claude Opus 4.8 (recommended)')
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .addOption('claude-sonnet-4-6', 'Claude Sonnet 4.6')
-            .setValue(this.plugin.settings.aiModel || 'claude-opus-4-8')
-            .onChange(async (value) => {
-              this.plugin.settings.aiModel = value;
-              await this.plugin.saveSettings();
-              this.plugin.updateAIService();
-            })
-          );
-      }
-      
-      // OpenAI API Key + Model
-      if (this.plugin.settings.aiProvider === 'openai') {
-        new Setting(containerEl)
-          .setName('OpenAI API key')
-          .setDesc('Your OpenAI API key.')
-          .addText(text => {
-            text
-              .setPlaceholder('Sk-...')
-              .setValue(this.plugin.settings.openaiApiKey)
-              .onChange(async (value) => {
-                this.plugin.settings.openaiApiKey = value;
-                await this.plugin.saveSettings();
-                this.plugin.updateAIService();
-              });
-            text.inputEl.type = 'password';
-          });
-        
-        new Setting(containerEl)
-          .setName('OpenAI model')
-          .setDesc('Choose which OpenAI model to use for processing.')
-          .addDropdown(dropdown => dropdown
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .addOption('gpt-4o', 'GPT-4o (recommended)')
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .addOption('gpt-5.6-sol', 'GPT-5.6 Sol')
-            .setValue(this.plugin.settings.aiModel || 'gpt-4o')
-            .onChange(async (value) => {
-              this.plugin.settings.aiModel = value;
-              await this.plugin.saveSettings();
-              this.plugin.updateAIService();
-            })
-          );
-      }
+      new Setting(containerEl)
+        .setName('Agent arguments')
+        .setDesc('Arguments passed to the agent command. The model and provider are configured in the agent itself.')
+        .addText(text => text
+          .setPlaceholder(DEFAULT_SETTINGS.acpAgentArgs)
+          .setValue(this.plugin.settings.acpAgentArgs)
+          .onChange((value) => {
+            this.plugin.settings.acpAgentArgs = value.trim() || DEFAULT_SETTINGS.acpAgentArgs;
+            debouncedAgentUpdate();
+          })
+        );
       
       // Test connection button
       new Setting(containerEl)
-        .setName('Test API connection')
-        .setDesc('Verify your API key is working')
+        .setName('Test agent')
+        .setDesc('Start the agent and send it a short prompt')
         .addButton(button => button
-          .setButtonText('Test connection')
+          .setButtonText('Test agent')
           .onClick(async () => {
             button.setButtonText('Testing...');
             button.setDisabled(true);
             
+            // Apply any edit still waiting on the debounce before testing.
+            await this.plugin.saveSettings();
+            this.plugin.updateAIService();
+            
             const result = await this.plugin.aiService.testConnection();
             
             if (result.success) {
-              new Notice('✓ AI connection successful!');
+              new Notice('Agent test succeeded');
             } else {
-              new Notice(`✗ Connection failed: ${result.message}`);
+              new Notice(`Agent test failed: ${result.message}`);
             }
             
-            button.setButtonText('Test connection');
+            button.setButtonText('Test agent');
             button.setDisabled(false);
           })
         );
@@ -552,7 +457,7 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
       
       new Setting(containerEl)
         .setName('Generate summary')
-        .setDesc('Create a 2-4 sentence summary of the meeting')
+        .setDesc('Create a summary of the meeting, scaled to its length')
         .addToggle(toggle => toggle
           .setValue(this.plugin.settings.enableSummary)
           .onChange(async (value) => {
@@ -597,17 +502,6 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
             this.plugin.updateAIService();
           })
         );
-    } else if (!hasAILicense) {
-      // Show what Pro includes when AI is disabled
-      const featuresEl = containerEl.createDiv({ cls: 'meetingmind-pro-features' });
-      featuresEl.createEl('p', { text: 'With AI enrichment pro, you get:' });
-      const list = featuresEl.createEl('ul');
-      list.createEl('li', { text: '📝 automatic 2-4 sentence summaries' });
-      list.createEl('li', { text: '✅ action item extraction with owners' });
-      list.createEl('li', { text: '🎯 decision tracking' });
-      list.createEl('li', { text: '🏷️ smart tag suggestions from your vault' });
-      // eslint-disable-next-line obsidianmd/ui/sentence-case
-      list.createEl('li', { text: '👤 AI-powered participant insights' });
     }
   }
   
@@ -750,22 +644,12 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
   }
   
   /**
-   * Create Entity Extraction section (Pro)
+   * Create Entity Extraction section
    */
   private createEntitySection(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('Entity extraction (pro)')
+      .setName('Entity extraction')
       .setHeading();
-    
-    const isPro = true;
-    
-    if (!isPro) {
-      const upgradeNote = containerEl.createDiv({ cls: 'meetingmind-pro-note' });
-      upgradeNote.createEl('p', { 
-        text: 'Pro license required for entity extraction. Upgrade to automatically create notes for issues, updates, and topics mentioned in meetings.'
-      });
-      return;
-    }
     
     // Master toggle
     new Setting(containerEl)
@@ -852,14 +736,10 @@ export class MeetingMindSettingsTab extends PluginSettingTab {
         );
       
       // Info box
-      const infoBox = containerEl.createDiv({ cls: 'meetingmind-info-box' });
+      const infoBox = containerEl.createDiv({ cls: 'meeting-goose-info-box' });
       infoBox.createEl('p', {
         text: 'Entity notes are automatically created when mentioned in meetings and linked back to the meeting notes.'
       });
     }
   }
-  
-  /**
-   * Create License section
-   */
 }

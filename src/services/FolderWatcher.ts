@@ -60,7 +60,7 @@ export class FolderWatcher {
     // Also check immediately
     void this.checkForNewFiles();
     
-    console.debug(`MeetingMind: folder watcher started for ${this.watchFolder}`);
+    console.debug(`Meeting Goose: folder watcher started for ${this.watchFolder}`);
   }
   
   /**
@@ -71,7 +71,7 @@ export class FolderWatcher {
       clearInterval(this.watchInterval);
       this.watchInterval = null;
     }
-    console.debug('MeetingMind: folder watcher stopped');
+    console.debug('Meeting Goose: folder watcher stopped');
   }
   
   /**
@@ -102,20 +102,20 @@ export class FolderWatcher {
         const fileKey = `${file.path}:${file.stat.mtime}`;
         
         if (!this.processedFiles.has(fileKey)) {
-          console.debug(`MeetingMind: new transcript file detected: ${file.name}`);
+          console.debug(`Meeting Goose: new transcript file detected: ${file.name}`);
           this.processedFiles.add(fileKey);
           
           try {
             await this.callback(file);
-            new Notice(`MeetingMind: imported ${file.name}`);
+            new Notice(`Meeting Goose: imported ${file.name}`);
           } catch (error) {
-            console.error(`MeetingMind: failed to process ${file.name}`, error);
-            new Notice(`MeetingMind: failed to import ${file.name}`);
+            console.error(`Meeting Goose: failed to process ${file.name}`, error);
+            new Notice(`Meeting Goose: failed to import ${file.name}`);
           }
         }
       }
     } catch (error) {
-      console.error('MeetingMind: folder watch error', error);
+      console.error('Meeting Goose: folder watch error', error);
     }
   }
   

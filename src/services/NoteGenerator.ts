@@ -44,7 +44,7 @@ export class NoteGenerator {
     // Create the note
     const file = await this.app.vault.create(finalPath, content);
     
-    console.debug(`MeetingMind: created note at ${finalPath}`);
+    console.debug(`Meeting Goose: created note at ${finalPath}`);
     return file;
   }
   
@@ -264,10 +264,10 @@ export class NoteGenerator {
     if (!folder) {
       try {
         await this.app.vault.createFolder(normalizedPath);
-        console.debug(`MeetingMind: created folder ${normalizedPath}`);
+        console.debug(`Meeting Goose: created folder ${normalizedPath}`);
       } catch {
         // Folder might already exist or there's a race condition
-        console.debug(`MeetingMind: folder ${normalizedPath} may already exist`);
+        console.debug(`Meeting Goose: folder ${normalizedPath} may already exist`);
       }
     }
   }
