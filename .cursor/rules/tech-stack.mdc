@@ -1,12 +1,12 @@
 ---
-description: Technology stack, dependency versions, and best practices for MeetingMind
+description: Technology stack, dependency versions, and best practices for Meeting Goose
 globs: **/*
 alwaysApply: true
 ---
 
 # Technology Stack & Dependencies
 
-MeetingMind is an Obsidian plugin with a React-based frontend landing page. This document outlines the complete technology stack, versions, and best practices.
+Meeting Goose is an Obsidian plugin with a React-based frontend landing page. This document outlines the complete technology stack, versions, and best practices.
 
 ## Architecture Overview
 

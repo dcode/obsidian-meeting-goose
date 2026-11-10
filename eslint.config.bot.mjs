@@ -38,7 +38,7 @@ export default tseslint.config(
       'obsidianmd/ui/sentence-case': ['error', {
         enforceCamelCaseLower: true,
         allowAutoFix: true,
-        brands: ['Obsidian Meeting Goose', 'Meeting Goose', 'Goose', 'Otter.ai', 'Fireflies.ai', 'Granola', 'SRT', 'VTT', 'JSON'],
+        brands: ['Meeting Goose', 'Goose', 'Otter.ai', 'Fireflies.ai', 'Granola', 'SRT', 'VTT', 'JSON'],
         acronyms: ['API', 'AI', 'SRT', 'VTT', 'JSON'],
       }],
 
@@ -60,7 +60,6 @@ export default tseslint.config(
     },
     ignores: [
       'node_modules/**',
-      'frontend/**',
       'main.js',
       '*.config.mjs',
       'dist/**',

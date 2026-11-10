@@ -1,4 +1,4 @@
-# Obsidian Meeting Goose Testing Guide
+# Meeting Goose Testing Guide
 
 ## Quick Test Steps
 
@@ -6,7 +6,7 @@
 
 1. Open Obsidian with your test vault
 2. Press `Cmd+P` (Mac) or `Ctrl+P` (Windows)
-3. Type "Obsidian Meeting Goose: Import file"
+3. Type "Meeting Goose: Import file"
 4. Select one of the test files:
    - `sample-otter-export.json` - Otter.ai style export
    - `sample-meeting.vtt` - WebVTT format
@@ -58,7 +58,7 @@ Then import a transcript. You should see:
 
 ### 3. AI Enrichment Test
 
-1. Go to Settings → Obsidian Meeting Goose → AI Enrichment
+1. Go to Settings → Meeting Goose → AI Enrichment
 2. Enable AI enrichment
 3. Set the agent command (default `goose`) and arguments (default `acp`)
 4. Click "Test agent" to verify
@@ -74,7 +74,7 @@ Then import a transcript. You should see:
 
 ### 4. Folder Watcher Test
 
-1. Go to Settings → Obsidian Meeting Goose → Sources
+1. Go to Settings → Meeting Goose → Sources
 2. Enable "Folder watcher"
 3. Set watch folder to something like `Transcripts/Import`
 4. Create that folder in your vault
@@ -90,10 +90,10 @@ Test each command via `Cmd+P` / `Ctrl+P`:
 
 | Command | What to Expect |
 |---------|----------------|
-| Obsidian Meeting Goose: Import file | Opens file picker |
-| Obsidian Meeting Goose: Rebuild vault index | Notification confirms rebuild |
-| Obsidian Meeting Goose: View sync log | Opens modal with activity log |
-| Obsidian Meeting Goose: Sync now | Triggers Otter sync (needs setup) |
+| Meeting Goose: Import file | Opens file picker |
+| Meeting Goose: Rebuild vault index | Notification confirms rebuild |
+| Meeting Goose: View sync log | Opens modal with activity log |
+| Meeting Goose: Sync now | Triggers Otter sync (needs setup) |
 
 ---
 

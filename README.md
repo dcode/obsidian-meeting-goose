@@ -1,8 +1,8 @@
-# Obsidian Meeting Goose
+# Meeting Goose
 
 **Turn raw meeting transcripts into linked, actionable Obsidian notes — with AI enrichment that runs through your own local [Goose](https://github.com/block/goose) agent.**
 
-Obsidian Meeting Goose imports meeting transcripts into your vault, links them to the notes you already have, and (optionally) asks a local agent for a summary, action items, decisions, tags, participant insights, and entity notes. There are no license keys, no paid tier, and no API keys stored in the plugin: the model and provider are whatever your Goose installation is configured to use.
+Meeting Goose imports meeting transcripts into your vault, links them to the notes you already have, and (optionally) asks a local agent for a summary, action items, decisions, tags, participant insights, and entity notes. There are no license keys, no paid tier, and no API keys stored in the plugin: the model and provider are whatever your Goose installation is configured to use.
 
 > **Fork notice.** This is a fork of [MeetingMind](https://github.com/pattynextdoor/meetingmind) by Patrick Tumbucon, used under the MIT License. It is not affiliated with or endorsed by the original project. See [License and attribution](#license-and-attribution).
 
@@ -50,16 +50,16 @@ The plugin is not in the community plugin store. Install it manually:
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/dcode/obsidian-meeting-goose/releases/latest), or build them (see [Development](#development)).
 2. Create the folder `.obsidian/plugins/meeting-goose/` in your vault.
 3. Copy the three files into it.
-4. Restart Obsidian and enable **Obsidian Meeting Goose** in Settings → Community plugins.
+4. Restart Obsidian and enable **Meeting Goose** in Settings → Community plugins.
 
 ## Quick start
 
 1. **Configure a source**: enable the folder watcher and set a watch folder, or connect Fireflies or Granola.
-2. **Turn on AI enrichment** (optional) in Settings → Obsidian Meeting Goose → AI enrichment:
+2. **Turn on AI enrichment** (optional) in Settings → Meeting Goose → AI enrichment:
    - **Agent command**: `goose` by default. Use a full path if Obsidian cannot find it.
    - **Agent arguments**: `acp` by default.
    - Click **Test agent** to start the agent and send it a short prompt.
-3. **Import a transcript**: drop a file in the watched folder, or run `Obsidian Meeting Goose: Import transcript file(s)`.
+3. **Import a transcript**: drop a file in the watched folder, or run `Meeting Goose: Import transcript file(s)`.
 
 ## How the agent is used
 
@@ -106,7 +106,7 @@ Team decided to maintain backward compatibility through Q1.
 
 ## Commands
 
-All commands appear in the palette under `Obsidian Meeting Goose:`.
+All commands appear in the palette under `Meeting Goose:`.
 
 | Command | Description |
 |---------|-------------|

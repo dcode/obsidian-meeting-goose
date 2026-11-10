@@ -116,7 +116,7 @@ This catches most issues, but full checks are preferred.
 
 You may skip checks ONLY if:
 
-1. **Documentation-only changes** (markdown files in `docs/`)
+1. **Documentation-only changes** (markdown files only)
    - Still run `npm run build` to be safe
    
 2. **Emergency hotfix** (critical bug in production)

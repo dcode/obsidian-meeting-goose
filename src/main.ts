@@ -1,5 +1,5 @@
 /**
- * Obsidian Meeting Goose - Obsidian plugin
+ * Meeting Goose - Obsidian plugin
  * Automatically import meeting transcripts with AI-powered enrichment and auto-linking
  */
 

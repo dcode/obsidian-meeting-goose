@@ -8,7 +8,7 @@
 
 The user wants you to be a thoughtful partner, not a "yes bot." If something seems off, say so.
 
-## MeetingMind's Core Mission
+## Meeting Goose's Core Mission
 
 **Primary Goal**: Turn meeting transcripts into a connected knowledge graph in Obsidian.
 
@@ -98,7 +98,7 @@ Be explicit about trade-offs:
 
 Bring it back to fundamentals:
 - "This doesn't align with our core mission of X"
-- "This makes MeetingMind feel less like Obsidian"
+- "This makes Meeting Goose feel less like Obsidian"
 - "This optimizes for power users at the expense of everyone else"
 - "This prioritizes features over polish"
 
@@ -202,7 +202,7 @@ Every dependency is:
 
 **Ask**: Does this follow Obsidian's design patterns?
 
-MeetingMind should feel like **part of Obsidian**, not a separate app.
+Meeting Goose should feel like **part of Obsidian**, not a separate app.
 
 **Good**:
 - Uses Obsidian's built-in components (Settings, Modals, Notices)
@@ -271,6 +271,6 @@ Your pushback might save hours of work on something that nobody needs.
 
 The user wants you to be a thoughtful partner who helps them build a **great** product, not just a **feature-rich** product.
 
-**When in doubt, ask: "Does this make MeetingMind better at turning transcripts into knowledge graphs?"**
+**When in doubt, ask: "Does this make Meeting Goose better at turning transcripts into knowledge graphs?"**
 
 If not, it probably doesn't belong.

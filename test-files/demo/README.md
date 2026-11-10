@@ -1,6 +1,6 @@
 # Demo Files
 
-This folder contains everything needed to record the Obsidian Meeting Goose demo video.
+This folder contains everything needed to record the Meeting Goose demo video.
 
 ## Scenario: "The New Hire"
 
@@ -45,7 +45,7 @@ The `vault/` folder contains the initial state for the demo:
 ```
 vault/
 ├── Platform Migration.md    # Project stub
-└── People/                  # Empty (populated by Obsidian Meeting Goose)
+└── People/                  # Empty (populated by Meeting Goose)
 ```
 
 ## Usage
@@ -60,7 +60,7 @@ vault/
 ./reset-vault.sh
 ```
 
-### 2. Configure Obsidian Meeting Goose
+### 2. Configure Meeting Goose
 
 In Obsidian settings:
 - **Output folder:** `Meetings`
@@ -70,7 +70,7 @@ In Obsidian settings:
 
 ### 3. Import Transcripts
 
-Use `Obsidian Meeting Goose: Import file` command to import each transcript:
+Use `Meeting Goose: Import file` command to import each transcript:
 1. `01-monday-standup.json`
 2. `02-architecture-review.json`
 3. `03-wednesday-standup.json`
@@ -104,7 +104,3 @@ Demo Vault/
 │   └── ...
 └── Platform Migration.md
 ```
-
-## Demo Script
-
-See `DEMO-SCRIPT.md` in the `docs/demos/` folder for the full recording script.
