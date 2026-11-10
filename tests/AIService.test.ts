@@ -196,11 +196,19 @@ describe('AIService', () => {
         .rejects.toThrow('The agent reply contained no JSON: "I cannot help with that."');
     });
 
-    it('fails when the reply JSON is malformed', async () => {
-      runner.reply('{ "summary": oops }');
+    it('fails when the reply JSON cannot be repaired', async () => {
+      runner.reply('{ : : }');
 
       await expect(aiService.processTranscript(createTranscript({ participants: [] })))
-        .rejects.toThrow(/^The agent reply was not valid JSON \(.+\): "\{ "summary": oops \}"$/);
+        .rejects.toThrow(/^The agent reply was not valid JSON \(.+\): "\{ : : \}"$/);
+    });
+
+    it('repairs unescaped quotes in the summary', async () => {
+      runner.reply('{"summary": "They said "no", then "yes".", "decisions": ["Go",]}');
+
+      const result = await aiService.processTranscript(createTranscript({ participants: [] }));
+
+      expect(result).toMatchObject({ summary: 'They said "no", then "yes".', decisions: ['Go'] });
     });
 
     it('truncates long replies in the error', async () => {
