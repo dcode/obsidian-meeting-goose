@@ -459,7 +459,8 @@ export default class MeetingGoosePlugin extends Plugin {
       console.error('Meeting Goose: AI enrichment failed', error);
       const reason = error instanceof Error ? error.message : String(error);
       this.addLog('AI enrichment', 'error', `AI enrichment failed for ${transcript.title}`, reason);
-      new Notice(`AI enrichment failed, importing without it: ${reason}`, 10000);
+      // Stays until clicked: the reason is too long to read in a few seconds.
+      new Notice(`AI enrichment failed, importing without it (click to dismiss; see "View sync log"): ${reason}`, 0);
       return null; // Continue without AI enrichment
     }
   }
