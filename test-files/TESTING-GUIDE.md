@@ -1,4 +1,4 @@
-# MeetingMind Testing Guide
+# Obsidian Meeting Goose Testing Guide
 
 ## Quick Test Steps
 
@@ -6,7 +6,7 @@
 
 1. Open Obsidian with your test vault
 2. Press `Cmd+P` (Mac) or `Ctrl+P` (Windows)
-3. Type "MeetingMind: Import file"
+3. Type "Obsidian Meeting Goose: Import file"
 4. Select one of the test files:
    - `sample-otter-export.json` - Otter.ai style export
    - `sample-meeting.vtt` - WebVTT format
@@ -58,15 +58,14 @@ Then import a transcript. You should see:
 
 ### 3. AI Enrichment Test
 
-1. Go to Settings → MeetingMind → AI Enrichment
+1. Go to Settings → Obsidian Meeting Goose → AI Enrichment
 2. Enable AI enrichment
-3. Select provider (Claude or OpenAI)
-4. Enter your API key
-5. Click "Test Connection" to verify
-6. Import a transcript
+3. Set the agent command (default `goose`) and arguments (default `acp`)
+4. Click "Test agent" to verify
+5. Import a transcript
 
 **Expected result**: The note will include:
-- A Summary section (2-4 sentences)
+- A Summary section
 - Action Items (as Obsidian tasks)
 - Decisions (bulleted list)
 - Suggested tags in frontmatter
@@ -75,7 +74,7 @@ Then import a transcript. You should see:
 
 ### 4. Folder Watcher Test
 
-1. Go to Settings → MeetingMind → Sources
+1. Go to Settings → Obsidian Meeting Goose → Sources
 2. Enable "Folder watcher"
 3. Set watch folder to something like `Transcripts/Import`
 4. Create that folder in your vault
@@ -91,10 +90,10 @@ Test each command via `Cmd+P` / `Ctrl+P`:
 
 | Command | What to Expect |
 |---------|----------------|
-| MeetingMind: Import file | Opens file picker |
-| MeetingMind: Rebuild vault index | Notification confirms rebuild |
-| MeetingMind: View sync log | Opens modal with activity log |
-| MeetingMind: Sync now | Triggers Otter sync (needs setup) |
+| Obsidian Meeting Goose: Import file | Opens file picker |
+| Obsidian Meeting Goose: Rebuild vault index | Notification confirms rebuild |
+| Obsidian Meeting Goose: View sync log | Opens modal with activity log |
+| Obsidian Meeting Goose: Sync now | Triggers Otter sync (needs setup) |
 
 ---
 
@@ -112,7 +111,7 @@ Click the icon to open the sync log.
 ## Test Files Location
 
 ```
-/Users/patty/dev/meetingmind/test-files/
+test-files/
 ├── sample-otter-export.json   # Otter.ai JSON format
 ├── sample-meeting.vtt         # WebVTT format  
 ├── simple-meeting.txt         # Plain text format
@@ -132,7 +131,7 @@ For testing wins extraction, entity status updates, Top of Mind/Archive, and ref
 ## Troubleshooting
 
 ### Plugin not showing in settings?
-- Make sure folder is named `meetingmind` (lowercase)
+- Make sure folder is named `meeting-goose`
 - Restart Obsidian
 - Check Developer Console (Cmd+Option+I) for errors
 

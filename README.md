@@ -1,89 +1,77 @@
-<div align="center">
-  <img src="assets/logos/meetingmind_logo_240.png" alt="MeetingMind Logo" width="120" height="120" />
-  <h1>MeetingMind for Obsidian</h1>
-  <p><strong>Stop copy-pasting transcripts. MeetingMind turns your raw meeting transcripts into linked, actionable Obsidian notes automatically.</strong></p>
-  <p>
-    <a href="https://www.youtube.com/watch?v=KZ8D_RlLz7c">
-      <img src="https://img.shields.io/badge/▶_Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo" />
-    </a>
-  </p>
-</div>
+# Obsidian Meeting Goose
 
-MeetingMind is an Obsidian plugin that automatically imports meeting transcripts into your vault with AI-powered enrichment and intelligent auto-linking. Bridge the gap between meeting recording tools and personal knowledge management.
+**Turn raw meeting transcripts into linked, actionable Obsidian notes — with AI enrichment that runs through your own local [Goose](https://github.com/block/goose) agent.**
 
-**Looking for an Obsidian plugin for meeting notes?** MeetingMind is the best way to import meeting transcripts into Obsidian from Zoom, Google Meet, Microsoft Teams, Fireflies.ai, Granola, and Otter.ai. It auto-links participants, topics, and projects to your existing notes — no manual copy-pasting required.
+Obsidian Meeting Goose imports meeting transcripts into your vault, links them to the notes you already have, and (optionally) asks a local agent for a summary, action items, decisions, tags, participant insights, and entity notes. There are no license keys, no paid tier, and no API keys stored in the plugin: the model and provider are whatever your Goose installation is configured to use.
 
-**Want AI meeting summaries in Obsidian?** Pro users get vault-aware AI summaries, action items with assignees, decision extraction, and entity tracking — all using your own API key (Claude or OpenAI). Your data never touches our servers.
+> **Fork notice.** This is a fork of [MeetingMind](https://github.com/pattynextdoor/meetingmind) by Patrick Tumbucon, used under the MIT License. It is not affiliated with or endorsed by the original project. See [License and attribution](#license-and-attribution).
+
+## What is different from MeetingMind
+
+- **All features unlocked.** License validation and the Free/Pro split are gone.
+- **AI goes through a local agent.** Instead of calling the Anthropic or OpenAI APIs directly, the plugin spawns `goose acp` and talks to it over the [Agent Client Protocol](https://agentclientprotocol.com) (ACP). Any ACP-speaking agent can be substituted in settings.
 
 ## Features
 
-### 📥 Multi-Source Import
-- **Fireflies.ai Sync**: Direct API integration - automatically sync transcripts
-- **Granola Sync**: Direct API integration - automatically sync notes and transcripts (Granola Business plan)
-- **Meeting Tool Exports**: Export from Otter.ai, Fathom, Zoom, and more
-- **Folder Watcher**: Automatically import transcripts dropped into a watched folder
-- **Manual Import**: Import individual files via command palette
-- **Supported Formats**: VTT, SRT, TXT, JSON
+### Multi-source import
+- **Fireflies.ai sync**: direct API integration
+- **Granola sync**: direct API integration (Granola Business plan)
+- **Meeting tool exports**: Otter.ai, Fathom, Zoom, Google Meet, Microsoft Teams, and others
+- **Folder watcher**: import transcripts dropped into a watched folder
+- **Manual import**: import individual files from the command palette
+- **Supported formats**: VTT, SRT, TXT, JSON
 
-### 🤖 Context-Aware AI Enrichment (Pro)
-*MeetingMind's AI understands your vault structure and creates notes that integrate seamlessly with your existing knowledge base.*
+### AI enrichment (optional)
+- **Summaries** that scale with meeting length (TL;DR, key discussion points, context)
+- **Action items** with assignees and due dates, as Obsidian tasks
+- **Decisions** made during the meeting
+- **Tag suggestions** that prefer tags already used in your vault
+- **Participant insights** linked to each person's note
+- **Entity extraction**: notes for issues and topics mentioned, with status tracking
 
-- **Vault-Aware Summaries**: Structured meeting summaries (TL;DR, key discussion points, context & background) that scale with meeting length — short meetings get concise summaries, long meetings get thorough breakdowns with cross-meeting context
-- **Action Item Extraction**: Automatic task detection with assigned owners, ready for task management plugins
-- **Decision Extraction**: Capture key decisions made during meetings
-- **Smart Tag Suggestions**: AI-recommended tags based on your existing vault tags—learns from your tagging patterns
-- **Participant Insights**: AI-generated insights per participant, automatically linked to their notes
-- **Entity Extraction**: Auto-create notes for issues, updates, and topics mentioned—builds your knowledge graph automatically
-- **Your Data, Your Keys**: Use your own API keys (Claude or OpenAI) for full privacy control
+### Auto-linking
+- Creates `[[wiki-links]]` to existing notes, matching titles, explicit aliases, and implicit aliases
+- Skips ambiguous matches and surfaces them as suggested links instead
 
-### 🔗 Auto-Linking
-*Automatically connects meeting content to your existing notes—no manual linking required.*
+### Participant tracking, formatting, dashboard
+- Creates and updates a note per participant with their meeting history
+- Clean Markdown with YAML frontmatter (Dataview compatible) and a collapsible full transcript
+- A generated dashboard of meeting frequency, participant activity, and open action items
 
-- **Intelligent Linking**: Automatically creates `[[wiki-links]]` to existing notes in your vault
-  - *Example*: "The product lead mentioned the Phoenix Project" → `[[Product Lead]] mentioned the [[Phoenix Project]]` (if those notes exist)
-- **Alias Support**: Matches note titles, explicit aliases, and implicit aliases
-- **Disambiguation**: Handles ambiguous references gracefully
-- **Suggested Links**: Surfaces potential links for manual resolution when confidence is low
+## Requirements
 
-### 👥 Participant Tracking
-- **Auto-Create Notes**: Automatically create notes for meeting participants
-- **Meeting History**: Track meetings per person
-- **Update Existing**: Add meeting references to existing participant notes
-
-### 📝 Smart Formatting
-- **Structured Output**: Clean Markdown with YAML frontmatter
-- **Collapsible Transcripts**: Full transcript in expandable callout
-- **Dataview Compatible**: Frontmatter works with Dataview queries
-
-### 📊 Meeting Dashboard
-- **Visual Insights**: Generate a stats dashboard showing meeting frequency, participant activity, and open action items
-- **At-a-Glance Overview**: See your meeting patterns and track follow-ups across all meetings
+- Obsidian 1.4.0 or later, desktop only (macOS, Windows, Linux)
+- For AI enrichment: [Goose](https://github.com/block/goose) installed and configured with a provider (`goose configure`), so that `goose acp` works from a terminal
 
 ## Installation
 
-### Download from GitHub
-1. Go to the [latest release](https://github.com/pattynextdoor/meetingmind/releases/latest)
-2. Download `main.js`, `manifest.json`, and `styles.css`
-3. Create a folder: `.obsidian/plugins/meetingmind/` in your vault
-4. Copy the three files into that folder
-5. Restart Obsidian and enable the plugin in Settings → Community Plugins
+The plugin is not in the community plugin store. Install it manually:
 
-> **Community Plugin Store**: MeetingMind is currently under review for the Obsidian Community Plugin store. Once approved, you'll be able to install directly from the plugin browser.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/dcode/obsidian-meeting-goose/releases/latest), or build them (see [Development](#development)).
+2. Create the folder `.obsidian/plugins/meeting-goose/` in your vault.
+3. Copy the three files into it.
+4. Restart Obsidian and enable **Obsidian Meeting Goose** in Settings → Community plugins.
 
-## Quick Start
+## Quick start
 
-1. **Enable the plugin** in Obsidian settings
-2. **Configure a source**:
-   - Enable folder watcher and set a watch folder
-   - Export transcripts from Otter.ai (or other tools) to your watched folder
-3. **Configure AI** (optional, requires Pro):
-   - Choose Claude or OpenAI
-   - Enter your API key
-4. **Import a transcript**:
-   - Drop a file in the watched folder, or
-   - Use `MeetingMind: Import file` command
+1. **Configure a source**: enable the folder watcher and set a watch folder, or connect Fireflies or Granola.
+2. **Turn on AI enrichment** (optional) in Settings → Obsidian Meeting Goose → AI enrichment:
+   - **Agent command**: `goose` by default. Use a full path if Obsidian cannot find it.
+   - **Agent arguments**: `acp` by default.
+   - Click **Test agent** to start the agent and send it a short prompt.
+3. **Import a transcript**: drop a file in the watched folder, or run `Obsidian Meeting Goose: Import transcript file(s)`.
 
-## Example Output
+## How the agent is used
+
+- The agent is started the first time it is needed and one process is reused. It is stopped when the plugin unloads or the agent command changes.
+- Every prompt runs in its own ACP session, so prompts never share context. Importing one meeting sends several prompts (enrichment, participant insights, entities, status changes, description synthesis).
+- Sessions use the system temp directory as their working directory, not your vault.
+- The plugin offers the agent no file or terminal access and **declines every tool permission request**. It also starts the agent with `GOOSE_MODE=chat`, which tells Goose not to use tools at all. Transcripts are untrusted text; the agent only needs to read them and answer.
+- A prompt that runs longer than 10 minutes is cancelled.
+
+If you substitute another ACP agent, check how it handles tools: `GOOSE_MODE` means nothing to other agents, and an agent that runs its own tools without asking the client is not restrained by this plugin.
+
+## Example output
 
 ```markdown
 ---
@@ -118,93 +106,71 @@ Team decided to maintain backward compatibility through Q1.
 
 ## Commands
 
+All commands appear in the palette under `Obsidian Meeting Goose:`.
+
 | Command | Description |
 |---------|-------------|
-| `MeetingMind: Import file` | Import a transcript file manually |
-| `MeetingMind: Reprocess current note` | Re-run AI enrichment and auto-linking on the active meeting note |
-| `MeetingMind: Generate meeting dashboard` | Create/update a visual stats dashboard with meeting insights, recent meetings, and open action items |
-| `MeetingMind: Update dashboard` | Refresh the meeting dashboard |
-| `MeetingMind: Rebuild vault index` | Re-index notes for auto-linking |
-| `MeetingMind: Cleanup orphaned references` | Remove references to deleted meeting files from participant and entity notes |
-| `MeetingMind: View sync log` | Show recent sync activity |
-| `MeetingMind: Clear import history` | Allow re-importing transcripts |
+| `Import transcript file(s)` | Import one or more transcript files |
+| `Reprocess current note` | Re-run AI enrichment and auto-linking on the active meeting note |
+| `Reprocess all meetings (add AI to existing notes)` | Enrich meeting notes that were imported without AI |
+| `Generate meeting dashboard` | Create a stats dashboard with recent meetings and open action items |
+| `Update dashboard` | Refresh the meeting dashboard |
+| `Rebuild vault index` | Re-index notes for auto-linking |
+| `Cleanup orphaned references` | Remove references to deleted meeting files from participant and entity notes |
+| `Archive resolved issues` | Archive issue notes that have been resolved for a while |
+| `View sync log` | Show recent sync activity |
+| `Clear import history` | Allow re-importing transcripts |
 
-## Pricing
+## Network usage and privacy
 
-| Tier | Price | Features |
-|------|-------|----------|
-| **Free** | $0 | Multi-format parsing, auto-linking, folder watcher, participant tracking, meeting dashboard, Dataview-ready output |
-| **Pro** | $39 one-time | + Context-aware AI summaries, action items, decisions, vault-aware tag suggestions, participant insights, entity extraction. Uses your own API keys for full privacy control. |
+The plugin itself only makes network requests for the sync sources you enable:
 
-[Get Pro License](https://tumbucon.gumroad.com/l/meetingmind-pro?utm_source=github&utm_medium=readme_pricing_cta&utm_campaign=pro)
+| Service | Host | Purpose |
+|---------|------|---------|
+| Fireflies.ai | `api.fireflies.ai` | Sync transcripts (when enabled) |
+| Granola | `public-api.granola.ai` | Sync notes and transcripts (when enabled) |
 
-## Frequently Asked Questions
+The code also contains a dormant Otter.ai sync client (`otter.ai`); nothing in the settings UI enables it, and Otter transcripts are imported from exported files instead.
 
-**How do I import Zoom transcripts into Obsidian?**
-Export your Zoom transcript as a VTT file (Recording → Download Transcript), then either drop it into MeetingMind's watched folder or use the `Import file` command. MeetingMind parses the timestamps, speakers, and content automatically.
-
-**How do I import Google Meet transcripts into Obsidian?**
-Google Meet transcripts (available on Business Standard+ plans) are saved to Google Drive as Google Docs. Export as plain text and import into MeetingMind. See our [Google Meet guide](https://docs.meetingmind.me/features/google-meet) for details.
-
-**How do I import Microsoft Teams transcripts into Obsidian?**
-Download your Teams transcript as .vtt or .docx from the meeting recap, then import into MeetingMind. Requires Microsoft 365 Business Basic or higher.
-
-**Does MeetingMind work with Fireflies.ai?**
-Yes — MeetingMind has a direct API integration with Fireflies. Enable it in settings with your Fireflies API key and transcripts sync automatically.
-
-**Does MeetingMind work with Otter.ai?**
-Yes — export your Otter transcripts as text files and import them via folder watcher or manual import.
-
-**Is my data private?**
-Yes. MeetingMind runs entirely inside Obsidian. AI processing (Pro) uses your own API keys — your transcripts are sent directly to OpenAI or Anthropic, never to MeetingMind servers. There is no cloud storage, no analytics, and no data collection.
-
-**What's the difference between Free and Pro?**
-Free gives you multi-format import, auto-linking, folder watcher, participant tracking, and a meeting dashboard. Pro ($39 one-time) adds AI-powered summaries, action items, decisions, entity extraction, and participant insights using your own API key.
-
-**How is MeetingMind different from Granola?**
-Granola is a standalone meeting notes app. MeetingMind lives inside Obsidian and connects your meetings to your existing knowledge base — every mention of a person, project, or topic links to notes you already have. Granola captures meetings; MeetingMind connects them. You can use both: MeetingMind syncs your Granola notes into your vault.
+AI enrichment sends transcript text to the local agent process over stdin/stdout. Where it goes from there depends on how your agent is configured: a local model keeps everything on your machine, while a hosted provider receives your transcripts. The plugin collects no analytics and has no servers of its own.
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
+```
 
-# Build for development (watch mode)
+```bash
 npm run dev
+```
 
-# Build for production
+```bash
 npm run build
 ```
 
-## Network Usage & Privacy
+```bash
+npm test
+```
 
-This plugin connects to the following external services:
+```bash
+npm run lint
+```
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **Fireflies.ai API** | `api.fireflies.ai` | Sync transcripts (when enabled) |
-| **Gumroad API** | `api.gumroad.com` | Validates Pro license keys |
-| **Anthropic API** | `api.anthropic.com` | AI processing when Claude is selected (Pro) |
-| **OpenAI API** | `api.openai.com` | AI processing when GPT-4 is selected (Pro) |
+The ACP client is tested against `tests/fixtures/fake-acp-agent.mjs`, a small stand-in for `goose acp` built on the real ACP SDK, so the suite needs neither Goose nor a model.
 
-**Privacy First**: Your transcript content is sent to AI providers (OpenAI/Anthropic) only when AI enrichment is enabled, and only using your own API keys. No data is collected or stored by MeetingMind itself—your vault stays private.
+After changing runtime dependencies, regenerate the bundled-license notices:
 
-## Requirements
+```bash
+npm run notices
+```
 
-- Obsidian 1.4.0 or later
-- Desktop only (macOS, Windows, Linux)
+Project status and next steps are tracked in [ROADMAP.md](ROADMAP.md).
 
-## Support
+## License and attribution
 
-- **Documentation**: [docs.meetingmind.me](https://docs.meetingmind.me)
-- **Email**: patricktumbucon@gmail.com
-- **Issues**: [GitHub Issues](https://github.com/pattynextdoor/meetingmind/issues)
+MIT License — see [LICENSE](LICENSE).
 
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-Made with ♥ by [Patrick Tumbucon](https://github.com/pattynextdoor)
+- Original work: [MeetingMind](https://github.com/pattynextdoor/meetingmind), Copyright (c) 2025-2026 Patrick Tumbucon.
+- Modifications in this fork: Copyright (c) 2026 Derek Ditch.
+- [NOTICE](NOTICE) summarizes the fork's origin and changes.
+- [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) reproduces the licenses of the packages bundled into `main.js`.

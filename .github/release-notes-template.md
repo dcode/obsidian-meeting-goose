@@ -27,12 +27,12 @@
 
 **For Obsidian Community Plugins:**
 1. Open Obsidian Settings → Community Plugins
-2. Search for "MeetingMind"
+2. Search for "Obsidian Meeting Goose"
 3. Click Install, then Enable
 
 **For Manual Installation:**
 1. Download `main.js`, `manifest.json`, and `styles.css` from this release
-2. Create a folder: `YourVault/.obsidian/plugins/meetingmind/`
+2. Create a folder: `YourVault/.obsidian/plugins/meeting-goose/`
 3. Copy the files into that folder
 4. Reload Obsidian and enable the plugin
 
@@ -49,11 +49,9 @@ If you're upgrading from vX.Y.Z:
 
 ## 📖 Full Documentation
 
-- [Getting Started Guide](https://github.com/pattynextdoor/meetingmind/blob/main/docs/guide/getting-started.md)
-- [Feature Documentation](https://github.com/pattynextdoor/meetingmind/tree/main/docs/features)
-- [Pro Features](https://github.com/pattynextdoor/meetingmind/tree/main/docs/pro)
+- [README](https://github.com/dcode/obsidian-meeting-goose#readme)
 
 ---
 
-**Full Changelog**: https://github.com/pattynextdoor/meetingmind/compare/PREVIOUS_VERSION...CURRENT_VERSION
+**Full Changelog**: https://github.com/dcode/obsidian-meeting-goose/compare/PREVIOUS_VERSION...CURRENT_VERSION
 

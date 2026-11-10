@@ -102,7 +102,7 @@ The ObsidianReviewBot uses:
 - `.setName('Title Case')` → should be `.setName('title case')`
 - `.setDesc('Title Case Text')` → should be `.setDesc('title case text')`
 - `createEl('h2', { text: 'Title Case' })` → should be `createEl('h2', { text: 'title case' })`
-- Console messages: `'MeetingMind: Title Case'` → should be `'MeetingMind: title case'`
+- Console messages: `'Meeting Goose: Title Case'` → should be `'Meeting Goose: title case'`
 
 ### Type-aware rules not working
 

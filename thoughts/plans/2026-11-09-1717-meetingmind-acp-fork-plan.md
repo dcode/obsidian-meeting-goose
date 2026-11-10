@@ -5,7 +5,7 @@ branch: main
 repository: meetingmind
 topic: "MeetingMind Fork for Obsidian ACP Client & Goose CLI Integration (License-Free)"
 research_artifact: "thoughts/research/2026-11-09-1715-meetingmind-obsidian-acp-fork.md"
-status: complete
+status: implemented (manual verification against a real Goose install outstanding — see ROADMAP.md)
 tags: [plan, implementation, rpi, acp, goose, obsidian]
 ---
 
@@ -61,8 +61,8 @@ Strip out `LicenseService`, Gumroad license activation checks, and feature restr
 
 #### Success Criteria & Verification
 - **Automated Verification**:
-  - [ ] TypeScript compilation succeeds: `npm run build` or `npx tsc --noEmit`
-  - [ ] Unit tests updated/passing without LicenseService dependencies.
+  - [x] TypeScript compilation succeeds: `npm run build` or `npx tsc --noEmit`
+  - [x] Unit tests updated/passing without LicenseService dependencies.
 - **Manual Verification**:
   - [ ] Settings tab opens cleanly without license prompts.
 
@@ -93,7 +93,7 @@ Implement ACP client integration (`ACPClient` or wrapper) inside MeetingMind usi
 
 #### Success Criteria & Verification
 - **Automated Verification**:
-  - [ ] Typecheck passes: `npx tsc --noEmit`
+  - [x] Typecheck passes: `npx tsc --noEmit`
 - **Manual Verification**:
   - [ ] Plugin successfully spawns `goose acp` when processing a meeting transcript.
 
@@ -109,7 +109,7 @@ Verify full transcript ingestion, ACP AI processing, and note generation in Obsi
 
 #### Success Criteria & Verification
 - **Automated Verification**:
-  - [ ] All unit tests pass: `npm test`
+  - [x] All unit tests pass: `npm test`
 - **Manual Verification**:
   - [ ] Import a mock transcript in Obsidian and verify that MeetingMind generates a clean markdown note using `goose acp`.
 
@@ -122,3 +122,16 @@ Verify full transcript ingestion, ACP AI processing, and note generation in Obsi
 
 ### Rollback & Migration Plan
 - Git branches allow instant rollback if ACP communication encounters edge cases.
+
+---
+
+## Implementation Notes (2026-11-10)
+
+Deviations from the plan as written, recorded so the plan and the code agree:
+
+- **SDK version.** `@agentclientprotocol/sdk@0.0.1` was never published; the plugin uses `^2.5.0` (stable ACP v1 entrypoint). Its API is `client().connect(ndJsonStream(...))` plus `buildSession(cwd).start()`, not the `ClientSideConnection`/`StreamTransport` shape assumed in the research notes.
+- **AIService keeps its role.** It still builds prompts and parses replies; only the transport changed. It takes a `PromptRunner` (implemented by `ACPService`) in its constructor, which is also what the tests fake.
+- **Settings.** `aiProvider`, `aiModel`, `claudeApiKey`, `openaiApiKey` and the license fields are removed, and stripped from `data.json` on load. New: `acpAgentCommand` (`goose`) and `acpAgentArgs` (`acp`).
+- **Tool use is locked down.** Permission requests are declined, sessions run in the temp dir, and the agent is started with `GOOSE_MODE=chat`. Not in the original plan.
+- **Tests.** `tests/AIService.test.ts` covers AIService with a fake runner; `tests/ACPService.test.ts` runs the real SDK against `tests/fixtures/fake-acp-agent.mjs`. `LicenseService.test.ts` and `GumroadLinkTracking.test.ts` are deleted.
+- **Manual verification is still open** for all three phases: nothing here has been run inside Obsidian or against a real `goose acp`.
