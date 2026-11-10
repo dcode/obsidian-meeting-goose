@@ -5,7 +5,7 @@
 
 VAULT_PATH="${1:-/Users/patty/Obsidian/Cadence}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$SCRIPT_DIR/../.."  # meetingmind root
+PLUGIN_DIR="$SCRIPT_DIR/../.."  # repository root
 
 echo "🧹 Resetting demo vault at: $VAULT_PATH"
 echo ""
@@ -32,7 +32,7 @@ fi
 echo "✅ Build successful"
 
 # Create plugin directory if it doesn't exist
-PLUGIN_INSTALL_DIR="$VAULT_PATH/.obsidian/plugins/meetingmind"
+PLUGIN_INSTALL_DIR="$VAULT_PATH/.obsidian/plugins/meeting-goose"
 mkdir -p "$PLUGIN_INSTALL_DIR"
 
 # Copy plugin files
@@ -67,7 +67,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "Vault structure:"
 echo "  $VAULT_PATH/"
-echo "  ├── .obsidian/plugins/meetingmind/  (latest build)"
+echo "  ├── .obsidian/plugins/meeting-goose/  (latest build)"
 echo "  ├── Platform Migration.md           (project stub)"
 echo "  └── People/                         (empty)"
 echo ""
@@ -83,6 +83,6 @@ echo ""
 echo "Next steps:"
 echo "  1. Open Obsidian and select the Cadence vault"
 echo "  2. Reload Obsidian (Cmd+R) to pick up plugin changes"
-echo "  3. Use 'MeetingMind: Import file' to import transcripts"
+echo "  3. Use 'Obsidian Meeting Goose: Import transcript file(s)' to import transcripts"
 echo ""
 echo "Ready for demo recording! 🎬"

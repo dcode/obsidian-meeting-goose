@@ -1,0 +1,15 @@
+Obsidian Meeting Goose
+Copyright (c) 2026 Derek Ditch
+
+This project is a fork of MeetingMind (https://github.com/pattynextdoor/meetingmind)
+Copyright (c) 2025-2026 Patrick Tumbucon
+Used and modified under the MIT License. The full license text, including the
+original copyright notice, is in the LICENSE file.
+
+Changes made in this fork include: removal of license-key validation and paid
+feature gating, and replacement of the remote Anthropic/OpenAI API integration
+with a local agent (Goose) reached over the Agent Client Protocol.
+
+The distributed main.js also bundles third-party packages under the MIT, ISC,
+and Apache-2.0 licenses. Their copyright notices and license texts are in
+THIRD-PARTY-NOTICES.md.
