@@ -1,5 +1,5 @@
 /**
- * Obsidian Meeting Goose type definitions
+ * Meeting Goose type definitions
  * Based on the PRD technical data structures
  */
 

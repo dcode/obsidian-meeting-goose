@@ -41,7 +41,7 @@ Example: `1.1.4 - Bug fixes and performance improvements`
 
 **For Obsidian Community Plugins:**
 1. Open Obsidian Settings → Community Plugins
-2. Search for "Obsidian Meeting Goose"
+2. Search for "Meeting Goose"
 3. Click Install, then Enable
 
 **For Manual Installation:**

@@ -1,6 +1,6 @@
-# Obsidian Meeting Goose Tests
+# Meeting Goose Tests
 
-Comprehensive test suite for the Obsidian Meeting Goose plugin.
+Comprehensive test suite for the Meeting Goose plugin.
 
 ## Overview
 

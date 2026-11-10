@@ -297,7 +297,7 @@ export class ACPService implements PromptRunner {
     const initialized = connection.agent.request(methods.agent.initialize, {
       protocolVersion: PROTOCOL_VERSION,
       clientCapabilities: {},
-      clientInfo: { name: CLIENT_NAME, title: 'Obsidian Meeting Goose', version: this.clientVersion },
+      clientInfo: { name: CLIENT_NAME, title: 'Meeting Goose', version: this.clientVersion },
     });
     initialized.catch(() => undefined);
 
