@@ -17,6 +17,7 @@ import {
   PROTOCOL_VERSION,
 } from '@agentclientprotocol/sdk';
 import type {
+  ActiveSession,
   ClientConnection,
   InitializeResponse,
   RequestPermissionRequest,
@@ -198,20 +199,48 @@ export class ACPService implements PromptRunner {
     });
 
     try {
-      const turn = Promise.all([session.prompt(promptText), session.readText()]);
+      const turn = Promise.all([session.prompt(promptText), this.collectReply(session)]);
       // If the timeout wins, the turn's eventual rejection must not go unhandled.
       turn.catch(() => undefined);
-      const [response, text] = await Promise.race([turn, timeout]);
+      const [response, reply] = await Promise.race([turn, timeout]);
 
       if (response.stopReason !== 'end_turn') {
         throw new Error(`Agent stopped without finishing its reply (${response.stopReason})`);
       }
-      return text;
+      if (!reply.text.trim()) {
+        // Say what did arrive: an agent that only "thought" or tried to call
+        // tools looks identical to a silent one otherwise.
+        const seen = Object.entries(reply.updateCounts)
+          .map(([kind, count]) => `${kind} x${count}`)
+          .join(', ');
+        throw new Error(`Agent finished without sending any text (received: ${seen || 'no updates'})`);
+      }
+      return reply.text;
     } catch (error) {
       throw this.withStderr(error);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
       session.dispose();
+    }
+  }
+
+  /**
+   * Read one prompt turn: the agent's message text, plus a tally of every kind
+   * of update it sent, for error messages.
+   */
+  private async collectReply(session: ActiveSession): Promise<{ text: string; updateCounts: Record<string, number> }> {
+    let text = '';
+    const updateCounts: Record<string, number> = {};
+    for (;;) {
+      const message = await session.nextUpdate();
+      if (message.kind === 'stop') {
+        return { text, updateCounts };
+      }
+      const { update } = message;
+      updateCounts[update.sessionUpdate] = (updateCounts[update.sessionUpdate] ?? 0) + 1;
+      if (update.sessionUpdate === 'agent_message_chunk' && update.content.type === 'text') {
+        text += update.content.text;
+      }
     }
   }
 

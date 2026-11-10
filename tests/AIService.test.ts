@@ -189,12 +189,25 @@ describe('AIService', () => {
       expect(result).toEqual({ summary: 's', actionItems: [], decisions: [], suggestedTags: ['one-two'] });
     });
 
-    it('returns an empty enrichment when the reply is not JSON', async () => {
-      runner.reply('I cannot help with that.');
+    it('fails with an excerpt when the reply holds no JSON', async () => {
+      runner.reply('I cannot   help\nwith that.');
 
-      const result = await aiService.processTranscript(createTranscript({ participants: [] }));
+      await expect(aiService.processTranscript(createTranscript({ participants: [] })))
+        .rejects.toThrow('The agent reply contained no JSON: "I cannot help with that."');
+    });
 
-      expect(result).toEqual({ summary: '', actionItems: [], decisions: [], suggestedTags: [] });
+    it('fails when the reply JSON is malformed', async () => {
+      runner.reply('{ "summary": oops }');
+
+      await expect(aiService.processTranscript(createTranscript({ participants: [] })))
+        .rejects.toThrow(/^The agent reply was not valid JSON \(.+\): "\{ "summary": oops \}"$/);
+    });
+
+    it('truncates long replies in the error', async () => {
+      runner.reply('x'.repeat(500));
+
+      await expect(aiService.processTranscript(createTranscript({ participants: [] })))
+        .rejects.toThrow(`"${'x'.repeat(200)}…"`);
     });
 
     it('propagates agent failures', async () => {

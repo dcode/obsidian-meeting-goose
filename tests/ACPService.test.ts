@@ -230,6 +230,12 @@ describe('ACPService', () => {
       );
     });
 
+    it('reports what the agent sent when it finishes without any text', async () => {
+      await expect(fakeAgent('silent').sendPrompt('hi')).rejects.toThrow(
+        'Agent finished without sending any text (received: agent_thought_chunk x2)'
+      );
+    });
+
     it('does not cache a failed start', async () => {
       const service = new ACPService('definitely-not-a-real-goose-binary', ['acp']);
       services.push(service);

@@ -457,6 +457,9 @@ export default class MeetingGoosePlugin extends Plugin {
       return await this.aiService.processTranscript(transcript);
     } catch (error) {
       console.error('Meeting Goose: AI enrichment failed', error);
+      const reason = error instanceof Error ? error.message : String(error);
+      this.addLog('AI enrichment', 'error', `AI enrichment failed for ${transcript.title}`, reason);
+      new Notice(`AI enrichment failed, importing without it: ${reason}`, 10000);
       return null; // Continue without AI enrichment
     }
   }

@@ -661,45 +661,50 @@ ${transcriptText}`;
   }
   
   /**
-   * Parse AI response into enrichment object
+   * Parse AI response into enrichment object.
+   *
+   * Throws when the reply holds no usable JSON: a note silently missing its
+   * summary is much harder to diagnose than a visible failure.
    */
   private parseResponse(response: string): AIEnrichment {
-    try {
-      // Try to extract JSON from response (in case there's extra text)
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-      
-      const data = JSON.parse(jsonMatch[0]) as {
-        summary?: string;
-        actionItems?: Array<string | { task?: string; assignee?: string; dueDate?: string; due_date?: string }>;
-        decisions?: string[];
-        suggestedTags?: string[];
-        tags?: string[];
-      };
-      
-      return {
-        summary: data.summary || '',
-        actionItems: (data.actionItems || []).map((item) => ({
-          task: typeof item === 'string' ? item : (item.task || ''),
-          assignee: typeof item === 'object' && item !== null ? (item.assignee || undefined) : undefined,
-          dueDate: typeof item === 'object' && item !== null ? (item.dueDate || item.due_date || undefined) : undefined,
-        })),
-        decisions: data.decisions || [],
-        suggestedTags: (data.suggestedTags || data.tags || []).map((tag: string) => 
-          tag.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        ),
-      };
-    } catch (error) {
-      console.error('Meeting Goose: failed to parse AI response', error, response);
-      return {
-        summary: '',
-        actionItems: [],
-        decisions: [],
-        suggestedTags: [],
-      };
+    // Try to extract JSON from response (in case there's extra text)
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error(`The agent reply contained no JSON: ${AIService.excerpt(response)}`);
     }
+    
+    let data: {
+      summary?: string;
+      actionItems?: Array<string | { task?: string; assignee?: string; dueDate?: string; due_date?: string }>;
+      decisions?: string[];
+      suggestedTags?: string[];
+      tags?: string[];
+    };
+    try {
+      data = JSON.parse(jsonMatch[0]) as typeof data;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`The agent reply was not valid JSON (${reason}): ${AIService.excerpt(response)}`);
+    }
+    
+    return {
+      summary: data.summary || '',
+      actionItems: (data.actionItems || []).map((item) => ({
+        task: typeof item === 'string' ? item : (item.task || ''),
+        assignee: typeof item === 'object' && item !== null ? (item.assignee || undefined) : undefined,
+        dueDate: typeof item === 'object' && item !== null ? (item.dueDate || item.due_date || undefined) : undefined,
+      })),
+      decisions: data.decisions || [],
+      suggestedTags: (data.suggestedTags || data.tags || []).map((tag: string) => 
+        tag.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      ),
+    };
+  }
+  
+  /** A short, single-line sample of a reply for error messages. */
+  private static excerpt(text: string, maxLength = 200): string {
+    const flat = text.replace(/\s+/g, ' ').trim();
+    return flat.length > maxLength ? `"${flat.slice(0, maxLength)}…"` : `"${flat}"`;
   }
   
   /**
