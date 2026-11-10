@@ -7,6 +7,7 @@
 
 import { AIEnrichment, RawTranscript, TranscriptSegment, ParticipantInsight, EntityExtraction, Entity, EntityStatusUpdate } from '../types';
 import type { PromptRunner } from './ACPService';
+import { parseJsonReply } from './jsonReply';
 
 // Token limits for chunking (approximate, being conservative)
 const MAX_TOKENS_PER_CHUNK = 30000; // ~120KB of text
@@ -137,7 +138,7 @@ Return as JSON:
   ]
 }
 
-Only include participants who actually spoke in the transcript. Return valid JSON only. Wins should be specific accomplishments mentioned in the meeting.
+Only include participants who actually spoke in the transcript. Return valid JSON only. Inside string values, escape double quotes as \\" and line breaks as \\n. Wins should be specific accomplishments mentioned in the meeting.
 
 TRANSCRIPT:
 ${transcriptText}`;
@@ -241,12 +242,7 @@ ${transcriptText}`;
    */
   private parseParticipantInsights(response: string): ParticipantInsight[] {
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-      
-      const data = JSON.parse(jsonMatch[0]) as { participants?: Array<{
+      const data = parseJsonReply<unknown>(response) as { participants?: Array<{
         name?: string;
         role?: string;
         keyPoints?: string[];
@@ -323,7 +319,7 @@ Return as JSON:
   ]
 }
 
-Only extract clear, substantive mentions. Return empty arrays if none found. Return valid JSON only.
+Only extract clear, substantive mentions. Return empty arrays if none found. Return valid JSON only. Inside string values, escape double quotes as \\" and line breaks as \\n.
 
 TRANSCRIPT:
 ${transcriptText}`;
@@ -343,12 +339,7 @@ ${transcriptText}`;
    */
   private parseEntityExtraction(response: string): EntityExtraction {
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-      
-      const data = JSON.parse(jsonMatch[0]) as {
+      const data = parseJsonReply<unknown>(response) as {
         issues?: Array<Record<string, unknown>>;
         updates?: Array<Record<string, unknown>>;
         topics?: Array<Record<string, unknown>>;
@@ -650,7 +641,7 @@ Return your response in the following JSON format:
   "suggestedTags": ["string"]
 }
 
-Only include the sections that are requested. Return valid JSON only, no additional text.
+Only include the sections that are requested. Return valid JSON only, no additional text. Inside string values, escape double quotes as \\" and line breaks as \\n.
 The summary value should be a single string containing markdown formatting (newlines as \\n).
 
 Requested sections:
@@ -667,25 +658,13 @@ ${transcriptText}`;
    * summary is much harder to diagnose than a visible failure.
    */
   private parseResponse(response: string): AIEnrichment {
-    // Try to extract JSON from response (in case there's extra text)
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error(`The agent reply contained no JSON: ${AIService.excerpt(response)}`);
-    }
-    
-    let data: {
+    const data = parseJsonReply<{
       summary?: string;
       actionItems?: Array<string | { task?: string; assignee?: string; dueDate?: string; due_date?: string }>;
       decisions?: string[];
       suggestedTags?: string[];
       tags?: string[];
-    };
-    try {
-      data = JSON.parse(jsonMatch[0]) as typeof data;
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`The agent reply was not valid JSON (${reason}): ${AIService.excerpt(response)}`);
-    }
+    }>(response);
     
     return {
       summary: data.summary || '',
@@ -699,12 +678,6 @@ ${transcriptText}`;
         tag.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
       ),
     };
-  }
-  
-  /** A short, single-line sample of a reply for error messages. */
-  private static excerpt(text: string, maxLength = 200): string {
-    const flat = text.replace(/\s+/g, ' ').trim();
-    return flat.length > maxLength ? `"${flat.slice(0, maxLength)}…"` : `"${flat}"`;
   }
   
   /**
@@ -779,7 +752,7 @@ Return as JSON:
   ]
 }
 
-Only include entities that have clear status changes mentioned in the meeting. Return empty array if none. Return valid JSON only.
+Only include entities that have clear status changes mentioned in the meeting. Return empty array if none. Return valid JSON only. Inside string values, escape double quotes as \\" and line breaks as \\n.
 
 TRANSCRIPT:
 ${transcriptText}`;
@@ -799,12 +772,7 @@ ${transcriptText}`;
    */
   private parseEntityStatusUpdates(response: string): EntityStatusUpdate[] {
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return [];
-      }
-      
-      const data = JSON.parse(jsonMatch[0]) as {
+      const data = parseJsonReply<unknown>(response) as {
         statusUpdates?: Array<{
           entityName?: string;
           entityType?: 'issue' | 'update' | 'topic';
