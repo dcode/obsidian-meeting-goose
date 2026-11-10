@@ -31,7 +31,6 @@ The fork plan in `thoughts/plans/2026-11-09-1717-meetingmind-acp-fork-plan.md` i
 - [ ] Surface agent failures in the sync log / a Notice with the stderr tail, not just the console.
 - [ ] Batch the per-meeting prompts (enrichment, insights, entities) to cut agent round-trips.
 - [ ] Remove or wire up the dormant Otter sync client (`OtterService` has no settings UI).
-- [ ] Rewrite or delete `.cursor/rules/tech-stack.mdc`: it still describes the removed landing page, the Gumroad license check, and the direct Claude/OpenAI integration.
 - [ ] Write a current architecture doc (the upstream `docs/ENGINEERING-FLOW.md` was removed with the docs site because it described the license check and remote APIs).
 - [ ] A plugin icon/logo of our own, if wanted (upstream logos were removed).
 - [ ] CI: bump the `actions/*` versions (the test matrix is now Node 20 and 22; the ACP SDK is untested on 18).
