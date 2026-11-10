@@ -167,6 +167,8 @@ npm run notices
 
 The **Build plugin** workflow (`.github/workflows/release.yml`) builds the plugin on every pull request and push to `main` and uploads a `meeting-goose-<version>` artifact containing a ready-to-use plugin folder.
 
+Those are development builds: the `manifest.json` in the artifact is stamped `<next version>-dev.<commits since last release>+<short sha>`, for example `0.1.1-dev.4+abcd01f`, so you can tell in Obsidian exactly which commit is installed. Tagged release builds keep the plain `x.y.z` version. Print the version a build of your checkout would get with `node scripts/dev-version.mjs`.
+
 To cut a release, bump the version (this updates `package.json`, `manifest.json`, and `versions.json`, commits, and tags without a `v` prefix), then push:
 
 ```bash

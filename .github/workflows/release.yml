@@ -2,10 +2,12 @@ name: Build plugin
 
 # Builds the files Obsidian loads (main.js, manifest.json, styles.css).
 #
-# - Pull requests, pushes to main, and manual runs: the build is uploaded as a
-#   workflow artifact that can be unzipped into <vault>/.obsidian/plugins/.
-# - Pushing a version tag (e.g. 0.1.0, no "v" prefix): the same build is also
-#   attached to a draft GitHub release.
+# - Pull requests, pushes to main, and manual runs: a development build is
+#   uploaded as a workflow artifact that can be unzipped into
+#   <vault>/.obsidian/plugins/. Its manifest.json carries a development version
+#   such as 0.1.1-dev.4+abcd01f (see scripts/dev-version.mjs).
+# - Pushing a version tag (e.g. 0.1.0, no "v" prefix): the build keeps the
+#   plain version and is also attached to a draft GitHub release.
 
 on:
   push:
@@ -27,6 +29,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history and tags: development versions count commits since the last release tag.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -36,16 +41,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Read plugin metadata
-        id: meta
-        run: |
-          echo "id=$(node -p "require('./manifest.json').id")" >> "$GITHUB_OUTPUT"
-          echo "version=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
-
       - name: Check versions agree
-        env:
-          MANIFEST_VERSION: ${{ steps.meta.outputs.version }}
         run: |
+          MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
+          export MANIFEST_VERSION
           package_version="$(node -p "require('./package.json').version")"
           if [ "$package_version" != "$MANIFEST_VERSION" ]; then
             echo "::error::package.json is $package_version but manifest.json is $MANIFEST_VERSION"
@@ -59,6 +58,21 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json version $MANIFEST_VERSION"
             exit 1
           fi
+
+      # Tagged builds keep the committed x.y.z version. Everything else is
+      # stamped as a development build, in this checkout only.
+      - name: Stamp development version
+        if: github.ref_type != 'tag'
+        env:
+          # On pull requests HEAD is a temporary merge commit; name the PR's own commit instead.
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/dev-version.mjs --write --sha "$COMMIT_SHA"
+
+      - name: Read plugin metadata
+        id: meta
+        run: |
+          echo "id=$(node -p "require('./manifest.json').id")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: npm run build
