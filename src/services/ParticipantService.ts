@@ -5,6 +5,7 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { ParticipantInsight } from '../types';
 import type { SynthesisRequest } from './AIService';
+import { parseSpeakerName } from './speakerName';
 import type { SpeakerDetails } from './speakerName';
 
 export interface ParticipantInfo {
@@ -12,6 +13,60 @@ export interface ParticipantInfo {
   noteExists: boolean;
   notePath: string | null;
 }
+
+const FRONTMATTER = /^---\n([\s\S]*?)\n---/;
+const DETAILS_AS_OF = 'details_as_of';
+const ALIASES_BLOCK = /^aliases:[ \t]*\n((?:[ \t]*-[ \t]*.*(?:\n|$))+)/m;
+const ALIASES_LINE = /^aliases:[ \t]*(.*)$/m;
+
+const yamlText = (value: string): string => JSON.stringify(value);
+const yamlList = (values: string[]): string => `[${values.map(yamlText).join(', ')}]`;
+/** The text of a YAML scalar as written, with its quotes and escapes resolved. */
+function unquote(value: string): string {
+  const text = value.trim();
+  if (text.startsWith('"') && text.endsWith('"') && text.length > 1) {
+    try {
+      return String(JSON.parse(text));
+    } catch {
+      return text.slice(1, -1);
+    }
+  }
+  return text.replace(/^'(.*)'$/, '$1');
+}
+
+const hasProperty = (yaml: string, key: string): boolean => new RegExp(`^${key}:`, 'm').test(yaml);
+
+/** Set a single-line property, replacing its current value or appending it. */
+function setProperty(yaml: string, key: string, value: string): string {
+  const line = `${key}: ${value}`;
+  return hasProperty(yaml, key)
+    ? yaml.replace(new RegExp(`^${key}:.*$`, 'm'), () => line)
+    : `${yaml}\n${line}`;
+}
+
+/** Read the aliases property in any of its YAML forms: block list, inline list, or single value. */
+function readAliases(yaml: string): string[] {
+  const block = yaml.match(ALIASES_BLOCK);
+  if (block) {
+    return block[1].split('\n').map(line => unquote(line.replace(/^[ \t]*-[ \t]*/, ''))).filter(alias => alias);
+  }
+  const value = yaml.match(ALIASES_LINE)?.[1].trim();
+  if (!value) return [];
+  if (!value.startsWith('[')) return [unquote(value)];
+  // Inline list: quoted items may contain commas.
+  const items = value.slice(1, value.lastIndexOf(']')).match(/\s*"(?:[^"\\]|\\.)*"|\s*'[^']*'|[^,]+/g) ?? [];
+  return items.map(unquote).filter(alias => alias);
+}
+
+/** Remove the aliases property, whatever form it is in, so it can be rewritten. */
+function removeAliases(yaml: string): string {
+  const withoutBlock = yaml.replace(ALIASES_BLOCK, '');
+  const result = withoutBlock === yaml ? yaml.replace(/^aliases:.*(?:\n|$)/m, '') : withoutBlock;
+  return result.replace(/\n+$/, '');
+}
+
+/** Enough of a name to tell whether two notes are about the same person. */
+type PersonIdentity = Pick<SpeakerDetails, 'lastName' | 'firstName' | 'middleInitial'>;
 
 export class ParticipantService {
   private app: App;
@@ -44,46 +99,123 @@ export class ParticipantService {
   }
   
   /**
-   * Find an existing note for a participant
+   * Find an existing note for a participant.
+   *
+   * A person keeps one note however their display name changes (a promotion
+   * turns "Doe, John Capt" into "Doe, John Maj"), so the lookup tries, in order:
+   * the name as a file name, the name as an alias, and then the person's last
+   * and first name against the notes of known people.
    */
-  private findParticipantNote(name: string): string | null {
-    const possiblePaths = [
-      `${name}.md`,
-      `People/${name}.md`,
-      `Contacts/${name}.md`,
-      `Team/${name}.md`,
-    ];
+  private findParticipantNote(name: string, details?: SpeakerDetails): string | null {
+    const folders = ['', 'People', 'Contacts', 'Team'];
+    if (this.peopleFolder) folders.unshift(this.peopleFolder);
     
-    if (this.peopleFolder) {
-      possiblePaths.unshift(`${this.peopleFolder}/${name}.md`);
-    }
-    
-    for (const path of possiblePaths) {
-      const normalizedPath = normalizePath(path);
-      const file = this.app.vault.getAbstractFileByPath(normalizedPath);
-      if (file instanceof TFile) {
+    for (const folder of folders) {
+      const normalizedPath = normalizePath(folder ? `${folder}/${name}.md` : `${name}.md`);
+      if (this.app.vault.getAbstractFileByPath(normalizedPath) instanceof TFile) {
         return normalizedPath;
       }
     }
     
     // Search by alias or basename
+    const wanted = [name, details?.originalName].filter((n): n is string => !!n).map(n => n.toLowerCase());
     const files = this.app.vault.getMarkdownFiles();
     for (const file of files) {
-      const cache = this.app.metadataCache.getFileCache(file);
-      if (cache?.frontmatter?.aliases) {
-        const aliases = Array.isArray(cache.frontmatter.aliases)
-          ? cache.frontmatter.aliases
-          : [cache.frontmatter.aliases];
-        if (aliases.some((a: string) => a.toLowerCase() === name.toLowerCase())) {
-          return file.path;
-        }
-      }
-      if (file.basename.toLowerCase() === name.toLowerCase()) {
+      if (this.aliasesOf(file).some(alias => wanted.includes(alias.toLowerCase())) ||
+          wanted.includes(file.basename.toLowerCase())) {
         return file.path;
       }
     }
     
+    // Search by who the person is
+    const identity = details ?? parseSpeakerName(name).details;
+    if (identity) {
+      for (const file of files) {
+        if (this.isSamePerson(this.identityOf(file), identity)) {
+          return file.path;
+        }
+      }
+    }
+    
     return null;
+  }
+  
+  private aliasesOf(file: TFile): string[] {
+    const aliases: unknown = this.app.metadataCache.getFileCache(file)?.frontmatter?.aliases;
+    if (Array.isArray(aliases)) return aliases.map(String);
+    return aliases ? [String(aliases)] : [];
+  }
+  
+  /**
+   * The person a note is about, from its name properties, or failing that
+   * from its file name and aliases if it is recognizably a person note.
+   */
+  private identityOf(file: TFile): PersonIdentity | null {
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (frontmatter?.last_name && frontmatter?.first_name) {
+      return {
+        lastName: String(frontmatter.last_name),
+        firstName: String(frontmatter.first_name),
+        middleInitial: frontmatter.middle_initial ? String(frontmatter.middle_initial) : undefined,
+      };
+    }
+    
+    const inPeopleFolder = !!this.peopleFolder && file.path.startsWith(`${this.peopleFolder}/`);
+    if (frontmatter?.type !== 'person' && !inPeopleFolder) {
+      return null;
+    }
+    for (const candidate of [file.basename, ...this.aliasesOf(file)]) {
+      const parsed = parseSpeakerName(candidate).details;
+      if (parsed) return parsed;
+    }
+    // A person note named plainly "Last, First", as newNoteName() names them.
+    const plain = file.basename.match(/^([^,]+),\s*(\S+)$/);
+    return plain ? { lastName: plain[1].trim(), firstName: plain[2] } : null;
+  }
+  
+  /**
+   * Same last and first name, and no disagreement about the middle initial.
+   */
+  private isSamePerson(a: PersonIdentity | null, b: PersonIdentity): boolean {
+    if (!a) return false;
+    const same = (x: string, y: string): boolean => x.trim().toLowerCase() === y.trim().toLowerCase();
+    if (!same(a.lastName, b.lastName) || !same(a.firstName, b.firstName)) return false;
+    return !a.middleInitial || !b.middleInitial || same(a.middleInitial, b.middleInitial);
+  }
+  
+  /**
+   * The file name for a new person note. Rank is left out so that it does not
+   * change when the person's rank does: "Doe, John", not "Doe, John Capt".
+   */
+  private newNoteName(name: string, details?: SpeakerDetails): string {
+    if (!details) return name;
+    
+    const exists = (candidate: string): boolean => {
+      const folder = this.peopleFolder || '';
+      const path = normalizePath(folder ? `${folder}/${candidate}.md` : `${candidate}.md`);
+      return this.app.vault.getAbstractFileByPath(path) !== null;
+    };
+    
+    // An existing "Doe, John" that was not matched is someone else with that name.
+    const stable = `${details.lastName}, ${details.firstName}`;
+    if (!exists(stable)) return stable;
+    const withInitial = details.middleInitial ? `${stable} ${details.middleInitial}` : name;
+    return exists(withInitial) ? name : withInitial;
+  }
+  
+  /**
+   * The note each participant is, or will be, recorded in: display name to
+   * note name. The meeting note links through this, so "Doe, John Maj" points
+   * at the note "Doe, John".
+   */
+  resolveNoteNames(participants: string[], details?: Record<string, SpeakerDetails>): Record<string, string> {
+    const noteNames: Record<string, string> = {};
+    for (const name of participants) {
+      const existingPath = this.findParticipantNote(name, details?.[name]);
+      const existing = existingPath ? this.app.vault.getAbstractFileByPath(existingPath) : null;
+      noteNames[name] = existing instanceof TFile ? existing.basename : this.newNoteName(name, details?.[name]);
+    }
+    return noteNames;
   }
   
   /**
@@ -96,14 +228,15 @@ export class ParticipantService {
   async collectSynthesisRequests(
     participants: string[],
     meetingPath: string,
-    insights?: ParticipantInsight[]
+    insights?: ParticipantInsight[],
+    details?: Record<string, SpeakerDetails>
   ): Promise<SynthesisRequest[]> {
     const requests: SynthesisRequest[] = [];
     const meetingLink = meetingPath.replace(/\.md$/, '');
     
     for (const name of participants) {
       const insight = insights?.find(i => i.name.toLowerCase() === name.toLowerCase());
-      const notePath = this.findParticipantNote(name);
+      const notePath = this.findParticipantNote(name, details?.[name]);
       if (!insight || !notePath) continue;
       
       const file = this.app.vault.getAbstractFileByPath(notePath);
@@ -129,39 +262,92 @@ export class ParticipantService {
   }
   
   /**
-   * The note properties recording what was trimmed from a display name, as
-   * [key, YAML value] pairs. The original name is kept as an alias so the
-   * note is still found by it.
+   * The names a person has gone by, other than the note's own name. Kept as
+   * aliases so Obsidian's search and this plugin both find the note by them.
    */
-  private detailProperties(details?: SpeakerDetails): Array<[string, string]> {
-    if (!details) return [];
-    const quote = (value: string): string => JSON.stringify(value);
-    const properties: Array<[string, string]> = [
-      ['aliases', `[${quote(details.originalName)}]`],
-      ['last_name', quote(details.lastName)],
-      ['first_name', quote(details.firstName)],
-    ];
-    if (details.middleInitial) properties.push(['middle_initial', quote(details.middleInitial)]);
-    if (details.rank) properties.push(['rank', quote(details.rank)]);
-    if (details.branch) properties.push(['branch', quote(details.branch)]);
-    if (details.organization) properties.push(['organization', quote(details.organization)]);
+  private aliasesFor(noteName: string, displayName: string, details?: SpeakerDetails): string[] {
+    const names = [displayName, details?.originalName].filter((n): n is string => !!n);
+    return [...new Set(names)].filter(n => n.toLowerCase() !== noteName.toLowerCase());
+  }
+  
+  /**
+   * Properties for a new person note, as [key, YAML value] pairs: aliases,
+   * the parts of the name, and the details trimmed from the display name.
+   */
+  private newNoteProperties(
+    noteName: string,
+    displayName: string,
+    meetingDate: Date,
+    details?: SpeakerDetails
+  ): Array<[string, string]> {
+    const properties: Array<[string, string]> = [];
+    const aliases = this.aliasesFor(noteName, displayName, details);
+    if (aliases.length > 0) properties.push(['aliases', yamlList(aliases)]);
+    if (!details) return properties;
+    
+    properties.push(['last_name', yamlText(details.lastName)], ['first_name', yamlText(details.firstName)]);
+    if (details.middleInitial) properties.push(['middle_initial', yamlText(details.middleInitial)]);
+    properties.push(...this.currentDetailProperties(details, meetingDate));
     return properties;
   }
   
   /**
-   * Add any of those properties an existing note does not have yet. Values
-   * already in the note are never changed: they may have been edited by hand.
+   * The properties that change over a career, with the date they were seen.
    */
-  private addMissingDetailProperties(content: string, details?: SpeakerDetails): string {
-    const frontmatter = content.match(/^---\n([\s\S]*?)\n---/);
+  private currentDetailProperties(details: SpeakerDetails, meetingDate: Date): Array<[string, string]> {
+    const properties: Array<[string, string]> = [];
+    if (details.rank) properties.push(['rank', yamlText(details.rank)]);
+    if (details.branch) properties.push(['branch', yamlText(details.branch)]);
+    if (details.organization) properties.push(['organization', yamlText(details.organization)]);
+    if (properties.length > 0) properties.push([DETAILS_AS_OF, meetingDate.toISOString().split('T')[0]]);
+    return properties;
+  }
+  
+  /**
+   * Bring an existing person note up to date with the name they appeared
+   * under in this meeting:
+   *
+   * - the display name and original name are added as aliases;
+   * - missing name parts are filled in, never changed;
+   * - rank, branch, and organization follow the most recent meeting, so
+   *   importing an older transcript later does not undo a promotion.
+   */
+  private updateNameProperties(
+    content: string,
+    noteName: string,
+    displayName: string,
+    meetingDate: Date,
+    details?: SpeakerDetails
+  ): string {
+    const frontmatter = content.match(FRONTMATTER);
     if (!frontmatter) return content;
+    let yaml = frontmatter[1];
     
-    const missing = this.detailProperties(details)
-      .filter(([key]) => !new RegExp(`^${key}:`, 'm').test(frontmatter[1]));
-    if (missing.length === 0) return content;
+    const existingAliases = readAliases(yaml);
+    const known = new Set(existingAliases.map(alias => alias.toLowerCase()));
+    const newAliases = this.aliasesFor(noteName, displayName, details).filter(alias => !known.has(alias.toLowerCase()));
+    if (newAliases.length > 0) {
+      yaml = setProperty(removeAliases(yaml), 'aliases', yamlList([...existingAliases, ...newAliases]));
+    }
     
-    const additions = missing.map(([key, value]) => `${key}: ${value}`).join('\n');
-    return content.replace(frontmatter[0], `---\n${frontmatter[1]}\n${additions}\n---`);
+    if (details) {
+      const fillIn: Array<[string, string]> = [
+        ['last_name', yamlText(details.lastName)],
+        ['first_name', yamlText(details.firstName)],
+      ];
+      if (details.middleInitial) fillIn.push(['middle_initial', yamlText(details.middleInitial)]);
+      for (const [key, value] of fillIn) {
+        if (!hasProperty(yaml, key)) yaml = setProperty(yaml, key, value);
+      }
+      
+      const asOf = yaml.match(new RegExp(`^${DETAILS_AS_OF}:\\s*["']?(\\d{4}-\\d{2}-\\d{2})`, 'm'))?.[1];
+      const isNewer = !asOf || meetingDate.toISOString().split('T')[0] >= asOf;
+      for (const [key, value] of this.currentDetailProperties(details, meetingDate)) {
+        if (isNewer || !hasProperty(yaml, key)) yaml = setProperty(yaml, key, value);
+      }
+    }
+    
+    return yaml === frontmatter[1] ? content : content.replace(frontmatter[0], `---\n${yaml}\n---`);
   }
   
   /**
@@ -223,11 +409,11 @@ export class ParticipantService {
     
     for (const name of participants) {
       const insight = insightMap.get(name.toLowerCase());
-      const existingPath = this.findParticipantNote(name);
+      const existingPath = this.findParticipantNote(name, details?.[name]);
       
       if (existingPath) {
         // Update existing note
-        await this.updateParticipantNote(existingPath, meetingTitle, meetingPath, meetingDate, insight, syntheses?.get(existingPath), details?.[name]);
+        await this.updateParticipantNote(existingPath, meetingTitle, meetingPath, meetingDate, insight, syntheses?.get(existingPath), name, details?.[name]);
         updated.push(name);
       } else {
         // Create new participant note
@@ -253,14 +439,15 @@ export class ParticipantService {
     details?: SpeakerDetails
   ): Promise<string | null> {
     const folderPath = this.peopleFolder || '';
-    const fileName = `${name}.md`;
+    const noteName = this.newNoteName(name, details);
+    const fileName = `${noteName}.md`;
     const filePath = folderPath ? normalizePath(`${folderPath}/${fileName}`) : fileName;
     
     if (this.app.vault.getAbstractFileByPath(filePath)) {
       return null;
     }
     
-    const content = this.generateNewParticipantNote(name, meetingTitle, meetingPath, meetingDate, insight, details);
+    const content = this.generateNewParticipantNote(noteName, meetingTitle, meetingPath, meetingDate, insight, details, name);
     
     try {
       await this.app.vault.create(filePath, content);
@@ -281,7 +468,8 @@ export class ParticipantService {
     meetingPath: string,
     meetingDate: Date,
     insight?: ParticipantInsight,
-    details?: SpeakerDetails
+    details?: SpeakerDetails,
+    displayName: string = name
   ): string {
     const date = new Date().toISOString().split('T')[0];
     const meetingLink = meetingPath.replace(/\.md$/, '');
@@ -291,7 +479,7 @@ export class ParticipantService {
 created: ${date}
 type: person
 tags: [person]
-${this.detailProperties(details).map(([key, value]) => `${key}: ${value}\n`).join('')}---
+${this.newNoteProperties(name, displayName, meetingDate, details).map(([key, value]) => `${key}: ${value}\n`).join('')}---
 
 # ${name}
 
@@ -395,6 +583,7 @@ ${this.detailProperties(details).map(([key, value]) => `${key}: ${value}\n`).joi
     meetingDate: Date,
     insight?: ParticipantInsight,
     synthesizedAbout?: string,
+    displayName?: string,
     details?: SpeakerDetails
   ): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(notePath);
@@ -414,7 +603,7 @@ ${this.detailProperties(details).map(([key, value]) => `${key}: ${value}\n`).joi
       // Extract person name from file path
       const personName = file.basename;
       
-      content = this.addMissingDetailProperties(content, details);
+      content = this.updateNameProperties(content, personName, displayName ?? personName, meetingDate, details);
       
       // Replace the About section with the text synthesized for this meeting
       if (synthesizedAbout) {

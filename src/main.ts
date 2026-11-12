@@ -414,6 +414,7 @@ export default class MeetingGoosePlugin extends Plugin {
         transcript,
         enrichment: enrichment || undefined,
         autoLinks: new Map<string, string>(),
+        participantLinks: this.participantNoteNames(transcript),
         suggestedLinks,
       };
       const file = await this.noteGenerator.generateNote(processedMeeting);
@@ -433,6 +434,17 @@ export default class MeetingGoosePlugin extends Plugin {
   }
   
   // ==================== Transcript Processing Steps ====================
+  
+  /**
+   * Which person note each participant links to. Only meaningful when the
+   * plugin manages person notes; otherwise links use the names as they are.
+   */
+  private participantNoteNames(transcript: RawTranscript): Record<string, string> | undefined {
+    if (!this.settings.autoCreateParticipants || transcript.participants.length === 0) {
+      return undefined;
+    }
+    return this.participantService.resolveNoteNames(transcript.participants, transcript.participantDetails);
+  }
   
   /**
    * Analyze the transcript with the agent, if AI enrichment is enabled.
@@ -508,7 +520,7 @@ export default class MeetingGoosePlugin extends Plugin {
       const requests: SynthesisRequest[] = [];
       if (this.settings.autoCreateParticipants && transcript.participants.length > 0) {
         requests.push(...await this.participantService.collectSynthesisRequests(
-          transcript.participants, file.path, enrichment.participantInsights
+          transcript.participants, file.path, enrichment.participantInsights, transcript.participantDetails
         ));
       }
       if (entities) {
@@ -1087,6 +1099,7 @@ export default class MeetingGoosePlugin extends Plugin {
       transcript,
       enrichment: enrichment || undefined,
       autoLinks: new Map(),
+      participantLinks: this.participantNoteNames(transcript),
       suggestedLinks,
     };
     
@@ -1173,6 +1186,7 @@ export default class MeetingGoosePlugin extends Plugin {
         transcript,
         enrichment: enrichment || undefined,
         autoLinks: new Map(),
+        participantLinks: this.participantNoteNames(transcript),
         suggestedLinks,
       };
       
@@ -1216,9 +1230,10 @@ export default class MeetingGoosePlugin extends Plugin {
       if (attendeesMatch) {
         const attendeeLines = attendeesMatch[1].match(/-\s*"?\[\[([^\]]+)\]\]"?/g) || [];
         for (const line of attendeeLines) {
-          const nameMatch = line.match(/\[\[([^\]|]+)/);
+          // "[[Note name|Name used in the meeting]]": the transcript speaks of the latter.
+          const nameMatch = line.match(/\[\[([^\]|]+)(?:\|([^\]]+))?/);
           if (nameMatch) {
-            participants.push(nameMatch[1]);
+            participants.push(nameMatch[2] ?? nameMatch[1]);
           }
         }
       }

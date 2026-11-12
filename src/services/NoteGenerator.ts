@@ -92,7 +92,11 @@ export class NoteGenerator {
     const frontmatter: Record<string, unknown> = {
       date: this.formatDateISO(transcript.date),
       duration: transcript.duration,
-      attendees: transcript.participants.map(p => `"[[${p}]]"`),
+      // Link to the person's note, shown under the name used in this meeting.
+      attendees: transcript.participants.map(p => {
+        const noteName = meeting.participantLinks?.[p];
+        return noteName && noteName !== p ? `"[[${noteName}|${p}]]"` : `"[[${p}]]"`;
+      }),
       source: transcript.source,
     };
     

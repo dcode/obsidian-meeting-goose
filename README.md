@@ -26,7 +26,13 @@ Done in code before anything is written or sent to the agent, so it also cuts th
 
 - **Cue identifiers removed**: the `<uuid>/<n>-<n>` lines Microsoft Teams puts in `.vtt` files never reach the note.
 - **Speaker turns merged**: consecutive captions from the same speaker become one paragraph, with the time range it spans (`00:03 --> 00:09`).
-- **Speaker names shortened**: a directory-style name such as `Doe, John A CTR USAF AFMC AFLCMC/HNCO` is shown as `Doe, John CTR`. The middle initial, branch, and organization are recorded as properties on the person's note instead, with the original name as an alias. Names that do not follow that pattern are left as they are.
+- **Speaker names shortened**: a directory-style name such as `Doe, John A CTR USAF AFMC AFLCMC/HNCO` is shown as `Doe, John CTR`. Names that do not follow that pattern are left as they are.
+
+### One note per person
+- A person's note is named without the rank (`Doe, John`), so it stays the same note when their rank or organization changes. The meeting note links to it under the name used that day: `[[Doe, John|Doe, John Maj]]`.
+- Every name a person has appeared under is kept in the note's `aliases`, and `last_name`, `first_name`, `middle_initial`, `rank`, `branch`, and `organization` are recorded as properties.
+- A later meeting finds the note by file name, then by alias, then by last and first name. A different middle initial is treated as a different person, who gets their own note (`Doe, John Q`).
+- `rank`, `branch`, and `organization` follow the most recent meeting by date (`details_as_of`), so importing an old transcript afterwards does not undo a promotion. Name parts you have edited by hand are never overwritten.
 
 ### AI enrichment (optional)
 - **Summaries** that scale with meeting length (TL;DR, key discussion points, context)
