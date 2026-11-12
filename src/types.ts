@@ -3,6 +3,8 @@
  * Based on the PRD technical data structures
  */
 
+import type { SpeakerDetails } from './services/speakerName';
+
 export interface TranscriptSegment {
   speaker: string;
   timestamp: number; // seconds from start
@@ -20,6 +22,8 @@ export interface RawTranscript {
   sourceUrl?: string;
   hash: string; // for deduplication
   rawContent?: string;
+  /** Name parts removed from speaker names by normalization, keyed by display name. */
+  participantDetails?: Record<string, SpeakerDetails>;
 }
 
 export interface VaultIndex {

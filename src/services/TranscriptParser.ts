@@ -5,6 +5,8 @@
 import { RawTranscript, TranscriptSegment } from '../types';
 import * as crypto from 'crypto';
 
+const VTT_TIMING = /(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})/;
+
 export class TranscriptParser {
   
   /**
@@ -88,7 +90,13 @@ export class TranscriptParser {
       }
       
       // Check for timestamp line (HH:MM:SS.mmm or MM:SS.mmm --> HH:MM:SS.mmm or MM:SS.mmm)
-      const timestampMatch = line.match(/(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})/);
+      const timestampMatch = line.match(VTT_TIMING);
+      
+      // The line directly above a timing line, with no blank line between, is
+      // that cue's identifier (Teams writes "<uuid>/<n>-<n>"), not speech.
+      if (!timestampMatch && i + 1 < lines.length && VTT_TIMING.test(lines[i + 1])) {
+        continue;
+      }
       
       if (timestampMatch) {
         // Save previous segment
@@ -112,7 +120,7 @@ export class TranscriptParser {
         const speakerMatch = line.match(/^<v\s+([^>]+)>(.*)$/);
         if (speakerMatch) {
           currentSegment.speaker = speakerMatch[1].trim();
-          currentSegment.text = (currentSegment.text ? currentSegment.text + ' ' : '') + speakerMatch[2].trim();
+          currentSegment.text = (currentSegment.text ? currentSegment.text + ' ' : '') + this.stripHTMLTags(speakerMatch[2]).trim();
         } else {
           // Check for "Speaker: text" format
           const colonMatch = line.match(/^([^:]+):\s*(.*)$/);
@@ -120,7 +128,7 @@ export class TranscriptParser {
             currentSegment.speaker = colonMatch[1].trim();
             currentSegment.text = colonMatch[2].trim();
           } else {
-            currentSegment.text = (currentSegment.text ? currentSegment.text + ' ' : '') + line;
+            currentSegment.text = ((currentSegment.text ? currentSegment.text + ' ' : '') + this.stripHTMLTags(line)).trim();
           }
         }
       }
