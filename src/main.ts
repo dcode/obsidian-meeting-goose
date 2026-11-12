@@ -25,6 +25,7 @@ import {
 } from './types';
 
 import { TranscriptParser } from './services/TranscriptParser';
+import { normalizeTranscript } from './services/transcriptNormalizer';
 import { VaultIndexService } from './services/VaultIndex';
 import { AutoLinker } from './services/AutoLinker';
 import { AIService } from './services/AIService';
@@ -389,8 +390,12 @@ export default class MeetingGoosePlugin extends Plugin {
    * Process a transcript and create a note
    * @param skipDuplicateCheck - If true, skips the duplicate check (for manual imports)
    */
-  async processTranscript(transcript: RawTranscript, skipDuplicateCheck: boolean = false): Promise<TFile | null> {
+  async processTranscript(rawTranscript: RawTranscript, skipDuplicateCheck: boolean = false): Promise<TFile | null> {
     try {
+      // Shorten speaker names and merge each speaker's consecutive segments
+      // before anything is written or sent to the agent.
+      const transcript = normalizeTranscript(rawTranscript);
+      
       // Check for duplicate (unless skipped for manual imports)
       if (!skipDuplicateCheck && this.isDuplicate(transcript.hash)) {
         console.debug(`Meeting Goose: skipping duplicate transcript ${transcript.title}`);
@@ -579,7 +584,8 @@ export default class MeetingGoosePlugin extends Plugin {
         file.path,
         transcript.date,
         participantInsights,
-        syntheses
+        syntheses,
+        transcript.participantDetails
       );
       
       if (result.created.length > 0) {
@@ -1227,23 +1233,22 @@ export default class MeetingGoosePlugin extends Plugin {
       const segments: TranscriptSegment[] = [];
       
       for (const line of transcriptLines) {
-        // Parse: > **Speaker** (00:00): Text  or  > (00:00): Text
-        const segmentMatch = line.match(/^>\s*(?:\*\*([^*]+)\*\*\s*)?\((\d+:\d+(?::\d+)?)\):\s*(.+)/);
+        // Parse: > **Speaker** (00:00): Text, > (00:00): Text, or either with a range (00:00 --> 00:42)
+        const segmentMatch = line.match(/^>\s*(?:\*\*([^*]+)\*\*\s*)?\((\d+:\d+(?::\d+)?)(?:\s*-->\s*(\d+:\d+(?::\d+)?))?\):\s*(.+)/);
         if (segmentMatch) {
           const speaker = segmentMatch[1] || '';
-          const timestampStr = segmentMatch[2];
-          const text = segmentMatch[3];
+          const text = segmentMatch[4];
           
-          // Parse timestamp to seconds
-          const timeParts = timestampStr.split(':').map(Number);
-          let timestamp = 0;
-          if (timeParts.length === 3) {
-            timestamp = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
-          } else if (timeParts.length === 2) {
-            timestamp = timeParts[0] * 60 + timeParts[1];
-          }
+          const toSeconds = (clock: string): number => {
+            const timeParts = clock.split(':').map(Number);
+            return timeParts.length === 3
+              ? timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2]
+              : timeParts[0] * 60 + timeParts[1];
+          };
+          const timestamp = toSeconds(segmentMatch[2]);
+          const endTimestamp = segmentMatch[3] ? toSeconds(segmentMatch[3]) : undefined;
           
-          segments.push({ speaker, timestamp, text });
+          segments.push({ speaker, timestamp, endTimestamp, text });
         }
       }
       

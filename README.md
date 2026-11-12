@@ -21,6 +21,13 @@ Meeting Goose imports meeting transcripts into your vault, links them to the not
 - **Manual import**: import individual files from the command palette
 - **Supported formats**: VTT, SRT, TXT, JSON
 
+### Transcript clean-up
+Done in code before anything is written or sent to the agent, so it also cuts the tokens the agent reads:
+
+- **Cue identifiers removed**: the `<uuid>/<n>-<n>` lines Microsoft Teams puts in `.vtt` files never reach the note.
+- **Speaker turns merged**: consecutive captions from the same speaker become one paragraph, with the time range it spans (`00:03 --> 00:09`).
+- **Speaker names shortened**: a directory-style name such as `Doe, John A CTR USAF AFMC AFLCMC/HNCO` is shown as `Doe, John CTR`. The middle initial, branch, and organization are recorded as properties on the person's note instead, with the original name as an alias. Names that do not follow that pattern are left as they are.
+
 ### AI enrichment (optional)
 - **Summaries** that scale with meeting length (TL;DR, key discussion points, context)
 - **Action items** with assignees and due dates, as Obsidian tasks

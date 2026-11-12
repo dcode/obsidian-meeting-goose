@@ -5,6 +5,7 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { ParticipantInsight } from '../types';
 import type { SynthesisRequest } from './AIService';
+import type { SpeakerDetails } from './speakerName';
 
 export interface ParticipantInfo {
   name: string;
@@ -128,6 +129,42 @@ export class ParticipantService {
   }
   
   /**
+   * The note properties recording what was trimmed from a display name, as
+   * [key, YAML value] pairs. The original name is kept as an alias so the
+   * note is still found by it.
+   */
+  private detailProperties(details?: SpeakerDetails): Array<[string, string]> {
+    if (!details) return [];
+    const quote = (value: string): string => JSON.stringify(value);
+    const properties: Array<[string, string]> = [
+      ['aliases', `[${quote(details.originalName)}]`],
+      ['last_name', quote(details.lastName)],
+      ['first_name', quote(details.firstName)],
+    ];
+    if (details.middleInitial) properties.push(['middle_initial', quote(details.middleInitial)]);
+    if (details.rank) properties.push(['rank', quote(details.rank)]);
+    if (details.branch) properties.push(['branch', quote(details.branch)]);
+    if (details.organization) properties.push(['organization', quote(details.organization)]);
+    return properties;
+  }
+  
+  /**
+   * Add any of those properties an existing note does not have yet. Values
+   * already in the note are never changed: they may have been edited by hand.
+   */
+  private addMissingDetailProperties(content: string, details?: SpeakerDetails): string {
+    const frontmatter = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!frontmatter) return content;
+    
+    const missing = this.detailProperties(details)
+      .filter(([key]) => !new RegExp(`^${key}:`, 'm').test(frontmatter[1]));
+    if (missing.length === 0) return content;
+    
+    const additions = missing.map(([key, value]) => `${key}: ${value}`).join('\n');
+    return content.replace(frontmatter[0], `---\n${frontmatter[1]}\n${additions}\n---`);
+  }
+  
+  /**
    * What a meeting revealed about a person, as one line of context.
    */
   private buildAboutContext(insight: ParticipantInsight): string {
@@ -157,6 +194,7 @@ export class ParticipantService {
    * Create or update notes for participants with AI insights
    *
    * @param syntheses - rewritten About sections by note path, from collectSynthesisRequests()
+   * @param details - rank, branch, organization etc. by participant name, recorded in note properties
    */
   async processParticipants(
     participants: string[],
@@ -164,7 +202,8 @@ export class ParticipantService {
     meetingPath: string,
     meetingDate: Date,
     insights?: ParticipantInsight[],
-    syntheses?: Map<string, string>
+    syntheses?: Map<string, string>,
+    details?: Record<string, SpeakerDetails>
   ): Promise<{ created: string[]; updated: string[] }> {
     const created: string[] = [];
     const updated: string[] = [];
@@ -188,11 +227,11 @@ export class ParticipantService {
       
       if (existingPath) {
         // Update existing note
-        await this.updateParticipantNote(existingPath, meetingTitle, meetingPath, meetingDate, insight, syntheses?.get(existingPath));
+        await this.updateParticipantNote(existingPath, meetingTitle, meetingPath, meetingDate, insight, syntheses?.get(existingPath), details?.[name]);
         updated.push(name);
       } else {
         // Create new participant note
-        const newPath = await this.createParticipantNote(name, meetingTitle, meetingPath, meetingDate, insight);
+        const newPath = await this.createParticipantNote(name, meetingTitle, meetingPath, meetingDate, insight, details?.[name]);
         if (newPath) {
           created.push(name);
         }
@@ -210,7 +249,8 @@ export class ParticipantService {
     meetingTitle: string,
     meetingPath: string,
     meetingDate: Date,
-    insight?: ParticipantInsight
+    insight?: ParticipantInsight,
+    details?: SpeakerDetails
   ): Promise<string | null> {
     const folderPath = this.peopleFolder || '';
     const fileName = `${name}.md`;
@@ -220,7 +260,7 @@ export class ParticipantService {
       return null;
     }
     
-    const content = this.generateNewParticipantNote(name, meetingTitle, meetingPath, meetingDate, insight);
+    const content = this.generateNewParticipantNote(name, meetingTitle, meetingPath, meetingDate, insight, details);
     
     try {
       await this.app.vault.create(filePath, content);
@@ -240,7 +280,8 @@ export class ParticipantService {
     meetingTitle: string,
     meetingPath: string,
     meetingDate: Date,
-    insight?: ParticipantInsight
+    insight?: ParticipantInsight,
+    details?: SpeakerDetails
   ): string {
     const date = new Date().toISOString().split('T')[0];
     const meetingLink = meetingPath.replace(/\.md$/, '');
@@ -250,7 +291,7 @@ export class ParticipantService {
 created: ${date}
 type: person
 tags: [person]
----
+${this.detailProperties(details).map(([key, value]) => `${key}: ${value}\n`).join('')}---
 
 # ${name}
 
@@ -353,7 +394,8 @@ tags: [person]
     meetingPath: string,
     meetingDate: Date,
     insight?: ParticipantInsight,
-    synthesizedAbout?: string
+    synthesizedAbout?: string,
+    details?: SpeakerDetails
   ): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) return;
@@ -371,6 +413,8 @@ tags: [person]
       
       // Extract person name from file path
       const personName = file.basename;
+      
+      content = this.addMissingDetailProperties(content, details);
       
       // Replace the About section with the text synthesized for this meeting
       if (synthesizedAbout) {

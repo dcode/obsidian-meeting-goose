@@ -16,6 +16,7 @@ The fork plan in `thoughts/plans/2026-11-09-1717-meetingmind-acp-fork-plan.md` i
 - [x] **Agent failures are visible**: Notice plus sync log entry; unusable replies fail with an excerpt.
 - [x] **Lenient reply parsing** (`src/services/jsonReply.ts`): our string-escaping pass, then `jsonrepair`.
 - [x] **Two prompts per meeting** instead of four-plus-one-per-note: one analysis prompt (summary as tagged markdown, the rest as compact JSON, transcript sent once) and one batched prompt for all person/issue/topic description rewrites.
+- [x] **Transcript normalization** (`src/services/transcriptNormalizer.ts`, `speakerName.ts`): Teams cue IDs dropped, same-speaker turns merged with a time range, directory-style names shortened to `Last, First Rank` with the rest stored on the person note.
 - [x] **Upstream marketing material removed**: docs site, landing page, blog content, logos, SEO scripts, and the content CI workflow.
 - [x] **Version restarted at `0.1.0`** for the fork (`versions.json` reset).
 
@@ -34,6 +35,9 @@ The fork plan in `thoughts/plans/2026-11-09-1717-meetingmind-acp-fork-plan.md` i
 - [ ] Close ACP sessions after each prompt when the agent advertises `sessionCapabilities.close` (each prompt currently leaves a finished session behind in the agent).
 - [ ] Make the 10-minute prompt timeout a setting; local models can be slow on long transcripts.
 - [ ] Show progress during long imports (which step, which chunk).
+- [ ] A person's note is named `Last, First Rank`, so a rank change creates a second note. Match existing notes on `last_name` + `first_name` properties (and update `rank`) instead.
+- [ ] The branch/agency and rank word lists in `speakerName.ts` are built in; make them a setting if other name formats turn up.
+- [ ] Existing meeting notes keep their old long names; "Reprocess" does not rename people.
 - [ ] Long transcripts still cost one analysis prompt per ~30-minute chunk, and chunk summaries are joined rather than re-summarized. Revisit the chunk size (it is sized for small context windows) or add a final merge prompt.
 - [ ] The known-entities list in the analysis prompt grows with the vault; cap or filter it once there are hundreds of issue/topic notes.
 - [ ] Remove or wire up the dormant Otter sync client (`OtterService` has no settings UI).

@@ -176,10 +176,14 @@ export class NoteGenerator {
     section += '> [!note]- Full transcript (click to expand)\n>\n';
     
     for (const segment of transcript.segments) {
-      const timestamp = this.parser.formatTimestamp(segment.timestamp, totalDuration);
+      const start = this.parser.formatTimestamp(segment.timestamp, totalDuration);
+      // A segment that spans time shows the whole range it covers.
+      const timestamp = segment.endTimestamp !== undefined && segment.endTimestamp > segment.timestamp
+        ? `${start} --> ${this.parser.formatTimestamp(segment.endTimestamp, totalDuration)}`
+        : start;
       const speaker = segment.speaker ? `**${segment.speaker}**` : '';
       
-      // Format: > **Speaker** (00:00): Text
+      // Format: > **Speaker** (00:00 --> 00:42): Text
       if (speaker) {
         section += `> ${speaker} (${timestamp}): ${segment.text}\n`;
       } else {
