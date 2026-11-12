@@ -2,10 +2,10 @@
  * Tests for AIService
  *
  * The agent is replaced by a fake PromptRunner, so these cover prompt
- * construction and reply parsing without spawning anything.
+ * construction, reply parsing, and how many agent round-trips are spent.
  */
 
-import { AIService, AIFeatureOptions } from '../src/services/AIService';
+import { AIService, AIFeatureOptions, SynthesisRequest } from '../src/services/AIService';
 import type { PromptRunner } from '../src/services/ACPService';
 import { RawTranscript, EntityExtraction, ParticipantInsight } from '../src/types';
 
@@ -16,17 +16,15 @@ const ALL_FEATURES: AIFeatureOptions = {
   enableTagSuggestions: true,
 };
 
-const ENRICHMENT_REPLY = JSON.stringify({
-  summary: '**TL;DR** — Timeline agreed.',
+const SUMMARY = '**TL;DR** — Timeline agreed.\n\n**Key Discussion Points**\n- Bob said "Friday", then "maybe Monday"';
+
+const DATA = {
   actionItems: [
     { task: 'Complete the API', assignee: 'Bob', dueDate: 'Friday' },
     'Write the docs',
   ],
   decisions: ['Use TypeScript'],
   suggestedTags: ['Project Timeline', 'API!'],
-});
-
-const INSIGHTS_REPLY = JSON.stringify({
   participants: [
     {
       name: 'Bob',
@@ -37,7 +35,14 @@ const INSIGHTS_REPLY = JSON.stringify({
       sentiment: 'Engaged',
     },
   ],
-});
+  issues: [{ name: 'Login bug', description: 'Fails on SSO', mentionedBy: 'Bob', status: 'resolved' }],
+  updates: [{ name: 'API v2', status: 'completed', mentionedBy: 'bob' }],
+  topics: [{ name: 'Migration', category: 'technical', mentionedBy: 'Alice' }],
+  statusUpdates: [{ entityName: 'Old bug', entityType: 'issue', newStatus: 'resolved', reason: 'Fixed' }],
+};
+
+const reply = (summary: string | null, data: unknown): string =>
+  (summary === null ? '' : `<summary>\n${summary}\n</summary>\n`) + `<data>\n${JSON.stringify(data)}\n</data>`;
 
 class FakeRunner implements PromptRunner {
   prompts: string[] = [];
@@ -81,11 +86,6 @@ describe('AIService', () => {
     runner = new FakeRunner();
     aiService = new AIService(runner);
     aiService.configure(true, ALL_FEATURES);
-    jest.spyOn(console, 'error').mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
   });
 
   describe('enabled state', () => {
@@ -101,46 +101,47 @@ describe('AIService', () => {
 
     it('never calls the agent while disabled', async () => {
       aiService.configure(false, ALL_FEATURES);
-      const transcript = createTranscript();
 
-      expect(await aiService.processTranscript(transcript)).toBeNull();
-      expect(await aiService.generateParticipantInsights(transcript)).toBeNull();
-      expect(await aiService.extractEntities(transcript)).toBeNull();
-      expect(await aiService.synthesizeDescription('X', 'issue', '', 'ctx', 'M')).toBeNull();
-      expect(await aiService.synthesizePersonAbout('Bob', '', 'ctx', 'M')).toBeNull();
-      expect(await aiService.analyzeEntityStatusChanges(transcript, [{ name: 'X', type: 'issue' }])).toEqual([]);
+      expect(await aiService.analyzeMeeting(createTranscript(), { extractEntities: true })).toBeNull();
+      expect(await aiService.synthesizeNotes(
+        [{ id: 'a', kind: 'person', name: 'Bob', existing: '', newContext: 'ctx' }], 'M'
+      )).toEqual(new Map());
       expect(runner.prompts).toHaveLength(0);
     });
   });
 
-  describe('processTranscript', () => {
-    it('sends the transcript and parses the enrichment', async () => {
-      runner.reply(ENRICHMENT_REPLY, INSIGHTS_REPLY);
+  describe('analyzeMeeting', () => {
+    const known = [{ name: 'Old bug', type: 'issue' as const, currentStatus: 'in-progress' }];
 
-      const result = await aiService.processTranscript(createTranscript());
+    it('gets everything in a single agent round-trip', async () => {
+      runner.reply(reply(SUMMARY, DATA));
 
-      expect(runner.prompts[0]).toContain("Alice: Let's discuss the project timeline.");
-      // Segments without a speaker are sent without a "name:" prefix.
-      expect(runner.prompts[0]).toContain('\nGreat! We decided to use TypeScript.');
-      expect(result).toMatchObject({
-        summary: '**TL;DR** — Timeline agreed.',
-        decisions: ['Use TypeScript'],
-        suggestedTags: ['project-timeline', 'api'],
-      });
-      expect(result?.actionItems).toEqual([
+      const result = await aiService.analyzeMeeting(createTranscript(), { extractEntities: true, knownEntities: known });
+
+      expect(runner.prompts).toHaveLength(1);
+      expect(result?.enrichment.summary).toBe(SUMMARY);
+      expect(result?.enrichment.actionItems).toEqual([
         { task: 'Complete the API', assignee: 'Bob', dueDate: 'Friday' },
         { task: 'Write the docs', assignee: undefined, dueDate: undefined },
       ]);
+      expect(result?.enrichment.decisions).toEqual(['Use TypeScript']);
+      expect(result?.enrichment.suggestedTags).toEqual(['project-timeline', 'api']);
+      expect(result?.enrichment.entities).toEqual({
+        issues: [{ type: 'issue', name: 'Login bug', description: 'Fails on SSO', mentionedBy: 'Bob', status: 'resolved' }],
+        updates: [{ type: 'update', name: 'API v2', status: 'completed', mentionedBy: 'bob' }],
+        topics: [{ type: 'topic', name: 'Migration', category: 'technical', mentionedBy: 'Alice' }],
+      });
+      expect(result?.statusUpdates).toEqual([
+        { entityName: 'Old bug', entityType: 'issue', newStatus: 'resolved', reason: 'Fixed' },
+      ]);
     });
 
-    it('adds participant insights from a second prompt', async () => {
-      runner.reply(ENRICHMENT_REPLY, INSIGHTS_REPLY);
+    it('links participant insights to the entities they mentioned', async () => {
+      runner.reply(reply(SUMMARY, DATA));
 
-      const result = await aiService.processTranscript(createTranscript());
+      const result = await aiService.analyzeMeeting(createTranscript(), { extractEntities: true });
 
-      expect(runner.prompts).toHaveLength(2);
-      expect(runner.prompts[1]).toContain('PARTICIPANTS: Alice, Bob');
-      expect(result?.participantInsights).toEqual([
+      expect(result?.enrichment.participantInsights).toEqual([
         {
           name: 'Bob',
           role: 'Backend Engineer',
@@ -151,113 +152,110 @@ describe('AIService', () => {
           ],
           wins: ['Shipped auth'],
           sentiment: 'Engaged',
+          updates: [{ name: 'API v2', status: 'completed', date: '2024-01-15' }],
+          ownedTopics: [],
+          raisedIssues: ['Login bug'],
         },
       ]);
     });
 
-    it('skips participant insights when there are no participants', async () => {
-      runner.reply(ENRICHMENT_REPLY);
+    it('sends the transcript once, without a prefix for unnamed speakers', async () => {
+      runner.reply(reply(SUMMARY, DATA));
 
-      const result = await aiService.processTranscript(createTranscript({ participants: [] }));
+      await aiService.analyzeMeeting(createTranscript(), { extractEntities: true });
 
-      expect(runner.prompts).toHaveLength(1);
-      expect(result?.participantInsights).toBeUndefined();
+      const [prompt] = runner.prompts;
+      expect(prompt.split("Alice: Let's discuss the project timeline.")).toHaveLength(2);
+      expect(prompt).toContain('\nGreat! We decided to use TypeScript.');
     });
 
-    it('keeps the enrichment when the insights prompt fails', async () => {
-      runner.reply(ENRICHMENT_REPLY, new Error('agent died'));
+    it('keeps a summary full of quotes and line breaks intact', async () => {
+      const awkward = 'He said "no", then "yes".\n\n- {"not": "json"}\n- a </data> lookalike is fine too';
+      runner.reply(reply(awkward, { decisions: ['Go'] }));
 
-      const result = await aiService.processTranscript(createTranscript());
+      const result = await aiService.analyzeMeeting(createTranscript({ participants: [] }));
 
-      expect(result?.summary).toBe('**TL;DR** — Timeline agreed.');
-      expect(result?.participantInsights).toBeUndefined();
-    });
-
-    it('extracts JSON wrapped in prose or code fences', async () => {
-      runner.reply('Here you go:\n```json\n' + ENRICHMENT_REPLY + '\n```\nAnything else?');
-
-      const result = await aiService.processTranscript(createTranscript({ participants: [] }));
-
-      expect(result?.decisions).toEqual(['Use TypeScript']);
-    });
-
-    it('accepts "tags" as an alias for suggestedTags', async () => {
-      runner.reply(JSON.stringify({ summary: 's', tags: ['One Two'] }));
-
-      const result = await aiService.processTranscript(createTranscript({ participants: [] }));
-
-      expect(result).toEqual({ summary: 's', actionItems: [], decisions: [], suggestedTags: ['one-two'] });
-    });
-
-    it('fails with an excerpt when the reply holds no JSON', async () => {
-      runner.reply('I cannot   help\nwith that.');
-
-      await expect(aiService.processTranscript(createTranscript({ participants: [] })))
-        .rejects.toThrow('The agent reply contained no JSON: "I cannot help with that."');
-    });
-
-    it('fails when the reply JSON cannot be repaired', async () => {
-      runner.reply('{ : : }');
-
-      await expect(aiService.processTranscript(createTranscript({ participants: [] })))
-        .rejects.toThrow(/^The agent reply was not valid JSON \(.+\): "\{ : : \}"$/);
-    });
-
-    it('repairs unescaped quotes in the summary', async () => {
-      runner.reply('{"summary": "They said "no", then "yes".", "decisions": ["Go",]}');
-
-      const result = await aiService.processTranscript(createTranscript({ participants: [] }));
-
-      expect(result).toMatchObject({ summary: 'They said "no", then "yes".', decisions: ['Go'] });
-    });
-
-    it('truncates long replies in the error', async () => {
-      runner.reply('x'.repeat(500));
-
-      await expect(aiService.processTranscript(createTranscript({ participants: [] })))
-        .rejects.toThrow(`"${'x'.repeat(200)}…"`);
+      expect(result?.enrichment.summary).toBe(awkward);
+      expect(result?.enrichment.decisions).toEqual(['Go']);
     });
 
     it('propagates agent failures', async () => {
       runner.reply(new Error('Could not find "goose"'));
-
-      await expect(aiService.processTranscript(createTranscript())).rejects.toThrow('Could not find "goose"');
+      await expect(aiService.analyzeMeeting(createTranscript())).rejects.toThrow('Could not find "goose"');
     });
   });
 
   describe('prompt construction', () => {
-    const promptFor = async (options: Partial<AIFeatureOptions>, text = 'short'): Promise<string> => {
-      runner.reply(ENRICHMENT_REPLY);
-      aiService.configure(true, { ...ALL_FEATURES, ...options });
-      await aiService.processTranscript(createTranscript({
-        participants: [],
-        segments: [{ speaker: 'A', timestamp: 0, text }],
-      }));
+    const promptFor = async (
+      features: Partial<AIFeatureOptions>,
+      options: Parameters<AIService['analyzeMeeting']>[1] = {},
+      transcript: Partial<RawTranscript> = { participants: [] }
+    ): Promise<string> => {
+      runner.reply(reply(SUMMARY, DATA));
+      aiService.configure(true, { ...ALL_FEATURES, ...features });
+      await aiService.analyzeMeeting(createTranscript(transcript), options);
       return runner.prompts[runner.prompts.length - 1];
     };
 
-    it('requests every enabled section', async () => {
+    it('asks for the summary as tagged markdown, not as JSON', async () => {
       const prompt = await promptFor({});
-      expect(prompt).toContain('SUMMARY:');
-      expect(prompt).toContain('ACTION_ITEMS:');
-      expect(prompt).toContain('DECISIONS:');
-      expect(prompt).toContain('TAGS:');
+      expect(prompt).toContain('<summary>\nmarkdown summary\n</summary>');
+      expect(prompt).not.toContain('"summary"');
     });
 
-    it('omits disabled sections', async () => {
+    it('requests only the enabled sections', async () => {
       const prompt = await promptFor({ enableSummary: false, enableDecisions: false });
-      expect(prompt).not.toContain('SUMMARY:');
-      expect(prompt).not.toContain('DECISIONS:');
-      expect(prompt).toContain('ACTION_ITEMS:');
-      expect(prompt).toContain('TAGS:');
+      expect(prompt).not.toContain('<summary>');
+      expect(prompt).not.toContain('"decisions"');
+      expect(prompt).toContain('"actionItems"');
+      expect(prompt).toContain('"suggestedTags"');
+    });
+
+    it('leaves out the data block when only the summary is wanted', async () => {
+      const prompt = await promptFor({ enableActionItems: false, enableDecisions: false, enableTagSuggestions: false });
+      expect(prompt).toContain('<summary>');
+      expect(prompt).not.toContain('<data>');
+    });
+
+    it('asks about participants only when the transcript has some', async () => {
+      expect(await promptFor({})).not.toContain('"participants"');
+      const prompt = await promptFor({}, {}, { participants: ['Alice', 'Bob'] });
+      expect(prompt).toContain('"participants"');
+      expect(prompt).toContain('who actually spoke: Alice, Bob');
+    });
+
+    it('asks about entities only when extraction is on', async () => {
+      expect(await promptFor({})).not.toContain('"issues"');
+      const prompt = await promptFor({}, { extractEntities: true });
+      expect(prompt).toContain('"issues"');
+      expect(prompt).toContain('"updates"');
+      expect(prompt).toContain('"topics"');
+    });
+
+    it('lists known entities for status tracking only alongside extraction', async () => {
+      const knownEntities = [
+        { name: 'Login bug', type: 'issue' as const, currentStatus: 'in-progress' },
+        { name: 'Migration', type: 'topic' as const },
+      ];
+
+      const withExtraction = await promptFor({}, { extractEntities: true, knownEntities });
+      expect(withExtraction).toContain('"statusUpdates"');
+      expect(withExtraction).toContain('- Login bug (issue, current: in-progress)');
+      expect(withExtraction).toContain('- Migration (topic, current: none)');
+
+      expect(await promptFor({}, { extractEntities: true, knownEntities: [] })).not.toContain('"statusUpdates"');
+      expect(await promptFor({}, { knownEntities })).not.toContain('"statusUpdates"');
     });
 
     it('scales the summary depth with meeting length', async () => {
-      const words = (count: number): string => Array(count).fill('word').join(' ');
+      const words = (count: number): Partial<RawTranscript> => ({
+        participants: [],
+        segments: [{ speaker: 'A', timestamp: 0, text: Array(count).fill('word').join(' ') }],
+      });
 
-      expect(await promptFor({}, words(100))).toContain('1-2 sentences capturing the essential outcome');
-      expect(await promptFor({}, words(150 * 20))).toContain('4-6 bullet points');
-      expect(await promptFor({}, words(150 * 45))).toContain('6-10 bullet points');
+      expect(await promptFor({}, {}, words(100))).toContain('1-2 sentences capturing the essential outcome');
+      expect(await promptFor({}, {}, words(150 * 20))).toContain('4-6 bullet points');
+      expect(await promptFor({}, {}, words(150 * 45))).toContain('6-10 bullet points');
     });
 
     it('offers existing vault tags, capped at twenty', async () => {
@@ -273,11 +271,109 @@ describe('AIService', () => {
     });
   });
 
+  describe('reply parsing', () => {
+    const analyze = async (text: string, options: Parameters<AIService['analyzeMeeting']>[1] = {}) => {
+      runner.reply(text);
+      return aiService.analyzeMeeting(createTranscript({ participants: [] }), options);
+    };
+
+    it('tolerates prose around the blocks and a code fence around the JSON', async () => {
+      const result = await analyze(
+        'Here you go:\n<summary>\nShort.\n</summary>\n<data>\n```json\n{"decisions": ["Go"]}\n```\n</data>\nAnything else?'
+      );
+      expect(result?.enrichment).toMatchObject({ summary: 'Short.', decisions: ['Go'] });
+    });
+
+    it('accepts missing closing tags', async () => {
+      const result = await analyze('<summary>\nShort.\n<data>\n{"decisions": ["Go"]}');
+      expect(result?.enrichment).toMatchObject({ summary: 'Short.', decisions: ['Go'] });
+    });
+
+    it('finds the JSON when the data tags are missing', async () => {
+      const result = await analyze('<summary>Has {braces} in it.</summary>\n{"decisions": ["Go"]}');
+      expect(result?.enrichment).toMatchObject({ summary: 'Has {braces} in it.', decisions: ['Go'] });
+    });
+
+    it('accepts the old all-JSON shape with the summary inside it', async () => {
+      const result = await analyze('{"summary": "In JSON.", "tags": ["One Two"]}');
+      expect(result?.enrichment).toEqual({
+        summary: 'In JSON.', actionItems: [], decisions: [], suggestedTags: ['one-two'],
+      });
+    });
+
+    it('repairs unescaped quotes in the data block', async () => {
+      const result = await analyze('<summary>S</summary><data>{"decisions": ["Use "main" only", "Ship",]}</data>');
+      expect(result?.enrichment.decisions).toEqual(['Use "main" only', 'Ship']);
+    });
+
+    it('fails with an excerpt when the data block is unusable', async () => {
+      await expect(analyze('I cannot   help\nwith that.'))
+        .rejects.toThrow('The agent reply contained no JSON: "I cannot help with that."');
+      await expect(analyze('<summary>S</summary><data>{ : : }</data>'))
+        .rejects.toThrow(/^The agent reply was not valid JSON/);
+    });
+
+    it('takes a bare reply as the summary when only a summary was asked for', async () => {
+      aiService.configure(true, {
+        enableSummary: true, enableActionItems: false, enableDecisions: false, enableTagSuggestions: false,
+      });
+      expect((await analyze('Just the summary, no tags.'))?.enrichment.summary).toBe('Just the summary, no tags.');
+      expect((await analyze('<summary>Tagged.</summary>'))?.enrichment.summary).toBe('Tagged.');
+    });
+
+    it('returns empty sections for missing or malformed data', async () => {
+      const result = await analyze(
+        reply('S', { actionItems: 'nope', decisions: [1, '', 'Real'], participants: [{}], issues: [{ name: 42 }], statusUpdates: 'x' }),
+        { extractEntities: true, knownEntities: [{ name: 'X', type: 'issue' }] }
+      );
+      expect(result).toEqual({
+        enrichment: {
+          summary: 'S',
+          actionItems: [],
+          decisions: ['Real'],
+          suggestedTags: [],
+          entities: { issues: [], updates: [], topics: [] },
+        },
+        statusUpdates: [],
+      });
+    });
+
+    it('drops unknown entity statuses and "null" owners', async () => {
+      const result = await analyze(
+        reply('S', { issues: [{ name: 'A', status: 'on fire', mentionedBy: 'null' }] }),
+        { extractEntities: true }
+      );
+      expect(result?.enrichment.entities?.issues).toEqual([{ type: 'issue', name: 'A' }]);
+    });
+
+    it('keeps only well-formed status updates', async () => {
+      const result = await analyze(
+        reply('S', {
+          statusUpdates: [
+            { entityName: 'Login bug', entityType: 'issue', newStatus: 'resolved', reason: 'Fixed' },
+            { entityName: 'No type', newStatus: 'stale' },
+            { entityName: 'Bad status', newStatus: 'exploded' },
+            { newStatus: 'resolved' },
+          ],
+        }),
+        { extractEntities: true, knownEntities: [{ name: 'Login bug', type: 'issue' }] }
+      );
+      expect(result?.statusUpdates).toEqual([
+        { entityName: 'Login bug', entityType: 'issue', newStatus: 'resolved', reason: 'Fixed' },
+        { entityName: 'No type', entityType: 'issue', newStatus: 'stale', reason: undefined },
+      ]);
+    });
+
+    it('ignores status updates it did not ask for', async () => {
+      const result = await analyze(reply('S', DATA), { extractEntities: true });
+      expect(result?.statusUpdates).toEqual([]);
+    });
+  });
+
   describe('long transcripts', () => {
     const longTranscript = (): RawTranscript => {
       const text = 'x'.repeat(50_000);
       return createTranscript({
-        participants: [],
         segments: [
           { speaker: 'A', timestamp: 0, text },
           { speaker: 'B', timestamp: 20 * 60, text },
@@ -287,98 +383,64 @@ describe('AIService', () => {
       });
     };
 
-    it('splits into ~30 minute chunks and merges the results', async () => {
+    it('spends one round-trip per ~30 minute chunk and merges every section', async () => {
       runner.reply(
-        JSON.stringify({
-          summary: 'First part.',
+        reply('First part.', {
           actionItems: [{ task: 'Ship it' }],
           decisions: ['Go'],
           suggestedTags: ['a', 'b', 'c'],
+          participants: [{ name: 'Bob', keyPoints: ['One'], actionItems: ['Ship it'], wins: ['W1'] }],
+          issues: [{ name: 'Login bug', description: 'Fails on SSO', status: 'in-progress' }],
+          statusUpdates: [{ entityName: 'Old bug', entityType: 'issue', newStatus: 'in-progress' }],
         }),
-        JSON.stringify({
-          summary: 'Second part.',
+        reply('Second part.', {
           actionItems: [{ task: 'SHIP IT' }, { task: 'Test it' }],
           decisions: ['Go', 'Wait'],
           suggestedTags: ['c', 'd', 'e', 'f'],
+          participants: [
+            { name: 'bob', role: 'Engineer', keyPoints: ['One', 'Two'], actionItems: ['ship it', 'Test it'], wins: ['W2'] },
+            { name: 'Alice', keyPoints: ['Three'] },
+          ],
+          issues: [{ name: 'login bug', description: 'Later wording', status: 'resolved' }],
+          statusUpdates: [{ entityName: 'old bug', entityType: 'issue', newStatus: 'resolved' }],
         }),
-        JSON.stringify({ summary: 'Third part.' })
+        reply('Third part.', {})
       );
 
-      const result = await aiService.processTranscript(longTranscript());
+      const result = await aiService.analyzeMeeting(longTranscript(), {
+        extractEntities: true,
+        knownEntities: [{ name: 'Old bug', type: 'issue' }],
+      });
 
       expect(runner.prompts).toHaveLength(3);
-      expect(result?.summary).toBe('**Overall:** First part.\n\n**Part 2:** Second part.\n\n**Part 3:** Third part.');
-      expect(result?.actionItems.map(item => item.task)).toEqual(['Ship it', 'Test it']);
-      expect(result?.decisions).toEqual(['Go', 'Wait']);
-      expect(result?.suggestedTags).toEqual(['a', 'b', 'c', 'd', 'e']);
+      const enrichment = result!.enrichment;
+      expect(enrichment.summary).toBe('**Overall:** First part.\n\n**Part 2:** Second part.\n\n**Part 3:** Third part.');
+      expect(enrichment.actionItems.map(item => item.task)).toEqual(['Ship it', 'Test it']);
+      expect(enrichment.decisions).toEqual(['Go', 'Wait']);
+      expect(enrichment.suggestedTags).toEqual(['a', 'b', 'c', 'd', 'e']);
+      expect(enrichment.participantInsights).toMatchObject([
+        {
+          name: 'Bob',
+          role: 'Engineer',
+          keyPoints: ['One', 'Two'],
+          actionItems: [{ task: 'Ship it' }, { task: 'Test it' }],
+          wins: ['W1', 'W2'],
+        },
+        { name: 'Alice', keyPoints: ['Three'] },
+      ]);
+      // First description, latest status.
+      expect(enrichment.entities?.issues).toEqual([
+        { type: 'issue', name: 'Login bug', description: 'Fails on SSO', status: 'resolved' },
+      ]);
+      expect(result!.statusUpdates).toEqual([
+        { entityName: 'old bug', entityType: 'issue', newStatus: 'resolved', reason: undefined },
+      ]);
     });
 
     it('uses a single summary as-is when only one chunk has one', async () => {
-      runner.reply(
-        JSON.stringify({ summary: 'Only summary.' }),
-        JSON.stringify({ decisions: ['Go'] })
-      );
-
-      const result = await aiService.processTranscript(longTranscript());
-
-      expect(result?.summary).toBe('Only summary.');
-    });
-  });
-
-  describe('generateParticipantInsights', () => {
-    it('returns an empty list when the reply cannot be parsed', async () => {
-      runner.reply('not json');
-      expect(await aiService.generateParticipantInsights(createTranscript())).toEqual([]);
-    });
-
-    it('returns null when the agent fails', async () => {
-      runner.reply(new Error('boom'));
-      expect(await aiService.generateParticipantInsights(createTranscript())).toBeNull();
-    });
-
-    it('fills in defaults for missing fields', async () => {
-      runner.reply(JSON.stringify({ participants: [{}] }));
-      expect(await aiService.generateParticipantInsights(createTranscript())).toEqual([
-        { name: '', role: undefined, keyPoints: [], actionItems: [], wins: [], sentiment: undefined },
-      ]);
-    });
-  });
-
-  describe('extractEntities', () => {
-    it('parses issues, updates, and topics', async () => {
-      runner.reply(JSON.stringify({
-        issues: [{ name: 'Login bug', description: 'Fails on SSO', mentionedBy: 'Alice', status: 'blocked' }],
-        updates: [{ name: 'API v2', status: 'completed', relatedTo: 'Platform' }],
-        topics: [{ name: 'Migration', category: 'technical' }],
-      }));
-
-      expect(await aiService.extractEntities(createTranscript())).toEqual({
-        issues: [{ type: 'issue', name: 'Login bug', description: 'Fails on SSO', mentionedBy: 'Alice', status: 'blocked' }],
-        updates: [{ type: 'update', name: 'API v2', status: 'completed', relatedTo: 'Platform' }],
-        topics: [{ type: 'topic', name: 'Migration', category: 'technical' }],
-      });
-    });
-
-    it('drops unknown statuses and non-string fields', async () => {
-      runner.reply(JSON.stringify({
-        issues: [{ name: 42, status: 'on fire', mentionedBy: null }],
-      }));
-
-      expect(await aiService.extractEntities(createTranscript())).toEqual({
-        issues: [{ type: 'issue', name: '' }],
-        updates: [],
-        topics: [],
-      });
-    });
-
-    it('returns empty lists when the reply cannot be parsed', async () => {
-      runner.reply('{ not json');
-      expect(await aiService.extractEntities(createTranscript())).toEqual({ issues: [], updates: [], topics: [] });
-    });
-
-    it('returns null when the agent fails', async () => {
-      runner.reply(new Error('boom'));
-      expect(await aiService.extractEntities(createTranscript())).toBeNull();
+      runner.reply(reply('Only summary.', {}), reply(null, { decisions: ['Go'] }));
+      const result = await aiService.analyzeMeeting(longTranscript());
+      expect(result?.enrichment.summary).toBe('Only summary.');
     });
   });
 
@@ -425,88 +487,63 @@ describe('AIService', () => {
     });
   });
 
-  describe('synthesis', () => {
-    it('synthesizes a description and strips wrapping quotes', async () => {
-      runner.reply('  "The login flow fails for SSO users."  ');
-
-      const result = await aiService.synthesizeDescription('Login bug', 'issue', '', 'Fails on SSO', 'Standup');
-
-      expect(result).toBe('The login flow fails for SSO users.');
-      expect(runner.prompts[0]).toContain('ENTITY: Login bug');
-      expect(runner.prompts[0]).toContain('(No existing description)');
-      expect(runner.prompts[0]).toContain('NEW CONTEXT FROM "Standup"');
-    });
-
-    it('synthesizes a person about section', async () => {
-      runner.reply("'Bob leads the API team.'");
-
-      const result = await aiService.synthesizePersonAbout('Bob', 'Old about', 'Shipped auth', 'Standup');
-
-      expect(result).toBe('Bob leads the API team.');
-      expect(runner.prompts[0]).toContain('PERSON: Bob');
-      expect(runner.prompts[0]).toContain('Old about');
-    });
-
-    it('notes when a person has no existing about section', async () => {
-      runner.reply('Bob leads the API team.');
-      await aiService.synthesizePersonAbout('Bob', '', 'Shipped auth', 'Standup');
-      expect(runner.prompts[0]).toContain('(No existing information)');
-    });
-
-    it('returns null when the agent fails', async () => {
-      runner.reply(new Error('boom'));
-
-      expect(await aiService.synthesizeDescription('X', 'topic', 'old', 'new', 'M')).toBeNull();
-      expect(await aiService.synthesizePersonAbout('Bob', '', 'ctx', 'M')).toBeNull();
-    });
-  });
-
-  describe('analyzeEntityStatusChanges', () => {
-    const existing = [
-      { name: 'Login bug', type: 'issue' as const, currentStatus: 'in-progress' },
-      { name: 'Migration', type: 'topic' as const },
+  describe('synthesizeNotes', () => {
+    const requests: SynthesisRequest[] = [
+      { id: 'People/Bob.md', kind: 'person', name: 'Bob', existing: 'Old about', newContext: 'Role: Engineer' },
+      { id: 'Issues/Login bug.md', kind: 'issue', name: 'Login bug', existing: '', newContext: 'Fails on SSO' },
+      { id: 'Topics/Migration.md', kind: 'topic', name: 'Migration', existing: 'Moving clouds', newContext: 'Phase 2 started' },
     ];
 
-    it('lists the existing entities in the prompt', async () => {
-      runner.reply('{"statusUpdates": []}');
-      await aiService.analyzeEntityStatusChanges(createTranscript(), existing);
-      expect(runner.prompts[0]).toContain('- Login bug (issue, current: in-progress)');
-      expect(runner.prompts[0]).toContain('- Migration (topic, current: none)');
-    });
-
-    it('keeps only well-formed status updates', async () => {
+    it('rewrites every note in one agent round-trip', async () => {
       runner.reply(JSON.stringify({
-        statusUpdates: [
-          { entityName: 'Login bug', entityType: 'issue', newStatus: 'resolved', reason: 'Fixed' },
-          { entityName: 'No type', newStatus: 'stale' },
-          { entityName: 'Bad status', newStatus: 'exploded' },
-          { newStatus: 'resolved' },
+        results: [
+          { id: 1, text: 'Bob leads the API team.' },
+          { id: '2', text: '  "The login flow fails for SSO users."  ' },
+          { id: 3, text: 'The migration is in phase 2.' },
         ],
       }));
 
-      expect(await aiService.analyzeEntityStatusChanges(createTranscript(), existing)).toEqual([
-        { entityName: 'Login bug', entityType: 'issue', newStatus: 'resolved', reason: 'Fixed' },
-        { entityName: 'No type', entityType: 'issue', newStatus: 'stale', reason: undefined },
-      ]);
+      const result = await aiService.synthesizeNotes(requests, 'Standup');
+
+      expect(runner.prompts).toHaveLength(1);
+      expect(result).toEqual(new Map([
+        ['People/Bob.md', 'Bob leads the API team.'],
+        ['Issues/Login bug.md', 'The login flow fails for SSO users.'],
+        ['Topics/Migration.md', 'The migration is in phase 2.'],
+      ]));
     });
 
-    it('does not call the agent when there are no entities', async () => {
-      expect(await aiService.analyzeEntityStatusChanges(createTranscript(), [])).toEqual([]);
+    it('describes each entry and the meeting in the prompt', async () => {
+      runner.reply('{"results": []}');
+
+      await aiService.synthesizeNotes(requests, 'Standup');
+
+      const [prompt] = runner.prompts;
+      expect(prompt).toContain('from the meeting "Standup"');
+      expect(prompt).toContain('[1] person: Bob\nExisting: Old about\nNew: Role: Engineer');
+      expect(prompt).toContain('[2] issue: Login bug\nExisting: (none)\nNew: Fails on SSO');
+      expect(prompt).toContain('[3] topic: Migration');
+    });
+
+    it('leaves out entries the agent skipped or answered with nothing', async () => {
+      runner.reply(JSON.stringify({ results: [{ id: 2, text: 'Only this one.' }, { id: 3, text: ' ' }, { id: 9, text: 'Stray' }] }));
+
+      const result = await aiService.synthesizeNotes(requests, 'Standup');
+
+      expect(result).toEqual(new Map([['Issues/Login bug.md', 'Only this one.']]));
+    });
+
+    it('costs nothing when there is nothing to rewrite', async () => {
+      expect(await aiService.synthesizeNotes([], 'Standup')).toEqual(new Map());
       expect(runner.prompts).toHaveLength(0);
     });
 
-    it.each([
-      ['no JSON', 'nothing changed'],
-      ['invalid JSON', '{ nope }'],
-      ['a non-array', '{"statusUpdates": "none"}'],
-    ])('returns no updates for %s', async (_label, reply) => {
-      runner.reply(reply);
-      expect(await aiService.analyzeEntityStatusChanges(createTranscript(), existing)).toEqual([]);
-    });
-
-    it('returns no updates when the agent fails', async () => {
+    it('propagates agent and parse failures', async () => {
       runner.reply(new Error('boom'));
-      expect(await aiService.analyzeEntityStatusChanges(createTranscript(), existing)).toEqual([]);
+      await expect(aiService.synthesizeNotes(requests, 'Standup')).rejects.toThrow('boom');
+
+      runner.reply('no json here');
+      await expect(aiService.synthesizeNotes(requests, 'Standup')).rejects.toThrow('contained no JSON');
     });
   });
 

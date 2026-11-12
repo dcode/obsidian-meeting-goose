@@ -3,21 +3,110 @@
  *
  * Builds the prompts and parses the replies. The prompts themselves are run by
  * a local ACP agent (Goose by default) through a PromptRunner.
+ *
+ * Agent round-trips are the expensive part, so a meeting costs as few as
+ * possible:
+ *
+ * - analyzeMeeting(): ONE prompt per transcript (one per chunk for very long
+ *   ones) returns the summary, action items, decisions, tags, participant
+ *   insights, entities, and status changes of known entities. The transcript
+ *   is sent once.
+ * - synthesizeNotes(): ONE prompt rewrites the descriptions of every existing
+ *   person, issue, and topic note the meeting touched.
+ *
+ * The summary is long markdown, so it travels as plain text between
+ * <summary> tags rather than as a JSON string, which models escape badly.
  */
 
-import { AIEnrichment, RawTranscript, TranscriptSegment, ParticipantInsight, EntityExtraction, Entity, EntityStatusUpdate } from '../types';
+import {
+  ActionItem,
+  AIEnrichment,
+  Entity,
+  EntityExtraction,
+  EntityStatusUpdate,
+  ParticipantInsight,
+  RawTranscript,
+  TranscriptSegment,
+} from '../types';
 import type { PromptRunner } from './ACPService';
 import { parseJsonReply } from './jsonReply';
 
 // Token limits for chunking (approximate, being conservative)
 const MAX_TOKENS_PER_CHUNK = 30000; // ~120KB of text
 const CHARS_PER_TOKEN = 4; // Rough estimate
+const CHUNK_DURATION_SECONDS = 30 * 60;
+
+const ENTITY_STATUSES = ['in-progress', 'completed', 'blocked', 'resolved', 'stale'] as const;
+type EntityStatus = typeof ENTITY_STATUSES[number];
 
 export interface AIFeatureOptions {
   enableSummary: boolean;
   enableActionItems: boolean;
   enableDecisions: boolean;
   enableTagSuggestions: boolean;
+}
+
+/** An entity note that already exists in the vault. */
+export interface KnownEntity {
+  name: string;
+  type: 'issue' | 'update' | 'topic';
+  currentStatus?: string;
+}
+
+export interface AnalysisOptions {
+  /** Also extract issues, updates, and topics. */
+  extractEntities?: boolean;
+  /** Existing entity notes whose status the meeting may have changed. */
+  knownEntities?: KnownEntity[];
+}
+
+export interface MeetingAnalysis {
+  enrichment: AIEnrichment;
+  /** Status changes for known entities; empty unless knownEntities was given. */
+  statusUpdates: EntityStatusUpdate[];
+}
+
+/** One existing note whose description should absorb what the meeting added. */
+export interface SynthesisRequest {
+  /** Caller's key for the result, e.g. the note path. */
+  id: string;
+  kind: 'person' | 'issue' | 'topic';
+  name: string;
+  /** Current description in the note; may be empty. */
+  existing: string;
+  /** What this meeting said about it. */
+  newContext: string;
+}
+
+/** What the analysis prompt asks for; decides both the prompt and the parsing. */
+interface AnalysisPlan {
+  summary: boolean;
+  actionItems: boolean;
+  decisions: boolean;
+  tags: boolean;
+  participants: string[];
+  entities: boolean;
+  knownEntities: KnownEntity[];
+}
+
+type JsonObject = Record<string, unknown>;
+
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const asObject = (value: unknown): JsonObject | null =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as JsonObject) : null;
+const asText = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+const asTexts = (value: unknown): string[] =>
+  asArray(value).map(asText).filter((text): text is string => text !== undefined);
+
+function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    const k = key(item).toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 export class AIService {
@@ -64,93 +153,385 @@ export class AIService {
     return this.enabled;
   }
   
+  // ==================== Meeting analysis ====================
+  
   /**
-   * Process a transcript and return AI enrichment
+   * Analyze a transcript in a single agent round-trip (one per chunk for
+   * transcripts too long for one prompt).
+   *
+   * Throws if the agent fails or its reply is unusable. A reply that is
+   * usable but missing a section just yields that section empty.
    */
-  async processTranscript(transcript: RawTranscript): Promise<AIEnrichment | null> {
+  async analyzeMeeting(transcript: RawTranscript, options: AnalysisOptions = {}): Promise<MeetingAnalysis | null> {
     if (!this.isEnabled()) {
       return null;
     }
     
-    // Convert transcript to text
-    const transcriptText = this.formatTranscriptForAI(transcript);
+    const plan: AnalysisPlan = {
+      summary: this.enableSummary,
+      actionItems: this.enableActionItems,
+      decisions: this.enableDecisions,
+      tags: this.enableTagSuggestions,
+      participants: transcript.participants,
+      entities: options.extractEntities === true,
+      knownEntities: options.extractEntities === true ? (options.knownEntities ?? []) : [],
+    };
     
-    // Check if we need to chunk
-    const estimatedTokens = transcriptText.length / CHARS_PER_TOKEN;
+    const fullText = this.formatSegmentsForAI(transcript.segments);
+    const chunkTexts = fullText.length / CHARS_PER_TOKEN > MAX_TOKENS_PER_CHUNK
+      ? this.splitIntoChunks(transcript.segments).map(chunk => this.formatSegmentsForAI(chunk))
+      : [fullText];
     
-    let enrichment: AIEnrichment | null;
-    
-    if (estimatedTokens > MAX_TOKENS_PER_CHUNK) {
-      enrichment = await this.processLongTranscript(transcript, transcriptText);
-    } else {
-      enrichment = await this.processChunk(transcriptText);
+    const results: MeetingAnalysis[] = [];
+    for (const chunkText of chunkTexts) {
+      const reply = await this.runner.sendPrompt(this.buildAnalysisPrompt(chunkText, plan));
+      results.push(this.parseAnalysisReply(reply, plan));
     }
     
-    // Generate participant insights if we have participants
-    if (enrichment && transcript.participants.length > 0) {
-      try {
-        const insights = await this.generateParticipantInsights(transcript);
-        if (insights) {
-          enrichment.participantInsights = insights;
-        }
-      } catch (error) {
-        console.error('Meeting Goose: failed to generate participant insights', error);
-        // Continue without participant insights
-      }
+    const analysis = this.mergeAnalyses(results);
+    const { enrichment } = analysis;
+    if (enrichment.entities && enrichment.participantInsights && enrichment.participantInsights.length > 0) {
+      enrichment.participantInsights = this.enrichParticipantInsightsWithEntities(
+        enrichment.participantInsights,
+        enrichment.entities,
+        transcript.date
+      );
     }
-    
-    return enrichment;
+    return analysis;
   }
   
   /**
-   * Generate per-participant insights from the transcript
+   * Build the single analysis prompt. Only what the plan asks for is
+   * described, so disabled features cost no prompt or reply tokens.
    */
-  async generateParticipantInsights(transcript: RawTranscript): Promise<ParticipantInsight[] | null> {
-    if (!this.isEnabled()) {
-      return null;
+  private buildAnalysisPrompt(transcriptText: string, plan: AnalysisPlan): string {
+    const keys: string[] = [];
+    const rules: string[] = [];
+    
+    if (plan.actionItems) {
+      keys.push('"actionItems": [{"task": "string", "assignee": "name or null", "dueDate": "string or null"}]');
+      rules.push('actionItems: tasks, commitments, and follow-ups mentioned, with assignee and due date when stated.');
+    }
+    if (plan.decisions) {
+      keys.push('"decisions": ["string"]');
+      rules.push('decisions: explicit decisions made during the meeting.');
+    }
+    if (plan.tags) {
+      const hint = this.existingTags.length > 0
+        ? ` Prefer these existing tags from the vault when relevant: ${this.existingTags.slice(0, 20).join(', ')}.`
+        : '';
+      keys.push('"suggestedTags": ["string"]');
+      rules.push(`suggestedTags: 3-5 tags for the topics discussed.${hint}`);
+    }
+    if (plan.participants.length > 0) {
+      keys.push('"participants": [{"name": "string", "role": "string", "keyPoints": ["string"], "actionItems": [{"task": "string", "dueDate": "string or null"}], "wins": ["string"], "sentiment": "string"}]');
+      rules.push(`participants: one entry for each of these people who actually spoke: ${plan.participants.join(', ')}. role is their likely role or expertise inferred from what they discuss; keyPoints are what they contributed; actionItems are tasks assigned to them; wins are specific things they completed or achieved; sentiment is a brief note on their engagement.`);
+    }
+    if (plan.entities) {
+      const entityShape = '[{"name": "string", "description": "string", "mentionedBy": "name or null", "status": "STATUS"';
+      keys.push(`"issues": ${entityShape.replace('STATUS', 'in-progress|blocked|resolved')}}]`);
+      keys.push(`"updates": ${entityShape.replace('STATUS', 'in-progress|completed|blocked')}}]`);
+      keys.push('"topics": [{"name": "string", "description": "string", "mentionedBy": "name or null", "category": "technical|process|product"}]');
+      rules.push('issues: specific technical problems, blockers, bugs, or challenges that need resolution; mentionedBy is who raised it.');
+      rules.push('updates: substantive progress, milestones, or completions; mentionedBy is who owns the work.');
+      rules.push('topics: significant concepts, systems, initiatives, or recurring themes worth documenting; mentionedBy is who owns or leads it.');
+      rules.push('Only extract clear, substantive issues, updates, and topics.');
+    }
+    if (plan.knownEntities.length > 0) {
+      const known = plan.knownEntities
+        .map(entity => `- ${entity.name} (${entity.type}, current: ${entity.currentStatus || 'none'})`)
+        .join('\n');
+      keys.push('"statusUpdates": [{"entityName": "exact name from the list", "entityType": "issue|update|topic", "newStatus": "resolved|completed|stale|in-progress|blocked", "reason": "string"}]');
+      rules.push(`statusUpdates: only for these already-tracked items whose status clearly changed in this meeting (an issue fixed or closed is "resolved"; an update finished is "completed"):\n${known}`);
     }
     
-    const transcriptText = this.formatTranscriptForAI(transcript);
-    const participants = transcript.participants.join(', ');
+    const format: string[] = [];
+    const instructions: string[] = [];
     
-    const prompt = `Analyze this meeting transcript and provide insights for each participant.
-
-PARTICIPANTS: ${participants}
-
-For each participant, extract:
-1. Their likely role or expertise (inferred from what they discuss)
-2. Key points they made or contributed
-3. Action items specifically assigned to them
-4. Wins/achievements: Things they completed, accomplished, or succeeded at (e.g., "Finished the API migration", "Launched feature X", "Resolved bug Y")
-5. Their overall engagement/sentiment (brief)
-
-Return as JSON:
-{
-  "participants": [
-    {
-      "name": "Participant Name",
-      "role": "Their likely role (e.g., 'Frontend Engineer', 'Project Manager')",
-      "keyPoints": ["Point 1", "Point 2"],
-      "actionItems": [{"task": "Task description", "dueDate": "date if mentioned"}],
-      "wins": ["Achievement 1", "Achievement 2"],
-      "sentiment": "Brief description of their engagement"
+    if (plan.summary) {
+      format.push('<summary>\nmarkdown summary\n</summary>');
+      instructions.push(`SUMMARY: markdown between the <summary> tags, never inside the JSON.\n${this.summaryInstruction(transcriptText)}`);
     }
-  ]
-}
+    if (keys.length > 0) {
+      format.push('<data>\nJSON object\n</data>');
+      instructions.push(
+        `DATA: one JSON object between the <data> tags with exactly these keys:\n{\n  ${keys.join(',\n  ')}\n}\n` +
+        `${rules.map(rule => `- ${rule}`).join('\n')}\n` +
+        '- Use an empty array when there is nothing to report. Keep strings short and plain: no markdown, and escape double quotes as \\".'
+      );
+    }
+    
+    return `Analyze the meeting transcript below. Reply in exactly this format, with nothing before or after it:
 
-Only include participants who actually spoke in the transcript. Return valid JSON only. Inside string values, escape double quotes as \\" and line breaks as \\n. Wins should be specific accomplishments mentioned in the meeting.
+${format.join('\n')}
 
-TRANSCRIPT:
+${instructions.join('\n\n')}
+
+MEETING TRANSCRIPT:
 ${transcriptText}`;
-
-    try {
-      const response = await this.runner.sendPrompt(prompt);
-      
-      return this.parseParticipantInsights(response);
-    } catch (error) {
-      console.error('Meeting Goose: failed to generate participant insights', error);
-      return null;
+  }
+  
+  /**
+   * Summary depth scales with the length of the meeting.
+   */
+  private summaryInstruction(transcriptText: string): string {
+    const wordCount = transcriptText.split(/\s+/).length;
+    const estimatedMinutes = Math.round(wordCount / 150); // ~150 wpm for transcripts
+    
+    if (estimatedMinutes <= 15) {
+      return `- **TL;DR** — 1-2 sentences capturing the essential outcome.
+- **Key Discussion Points** — 2-4 bullet points covering what was discussed, with enough context that someone who missed the meeting understands what happened and why it matters.
+- **Context & Background** — 1 sentence noting any references to prior work, external dependencies, or upcoming deadlines mentioned. Omit if none.`;
     }
+    if (estimatedMinutes <= 30) {
+      return `- **TL;DR** — 2-3 sentences capturing the essential outcomes and any shifts in direction.
+- **Key Discussion Points** — 4-6 bullet points covering major topics. Each bullet should include enough context that someone who missed the meeting understands what was discussed, what positions were taken, and why it matters.
+- **Context & Background** — 2-3 sentences noting references to prior work, external dependencies, open questions carried forward, or upcoming deadlines mentioned.`;
+    }
+    return `- **TL;DR** — 3-4 sentences capturing the essential outcomes, key shifts, and overall trajectory.
+- **Key Discussion Points** — 6-10 bullet points covering all major topics and sub-topics. Each bullet should provide substantive context: what was discussed, who drove it, what positions or concerns were raised, and what the resolution or next step is.
+- **Context & Background** — 3-5 sentences covering references to prior meetings or decisions, external dependencies, cross-team implications, open questions, and upcoming deadlines or milestones mentioned.`;
+  }
+  
+  /**
+   * Parse one analysis reply: the tagged summary plus the JSON data object.
+   */
+  private parseAnalysisReply(reply: string, plan: AnalysisPlan): MeetingAnalysis {
+    const expectsData = plan.actionItems || plan.decisions || plan.tags ||
+      plan.participants.length > 0 || plan.entities;
+    
+    // The closing tag is optional: a reply can be cut off, or the model can forget it.
+    const summaryMatch = reply.match(/<summary>([\s\S]*?)(?:<\/summary>|<data>|$)/i);
+    const dataMatch = reply.match(/<data>([\s\S]*?)(?:<\/data>|$)/i);
+    let summary = summaryMatch ? summaryMatch[1].trim() : '';
+    
+    let data: JsonObject = {};
+    if (expectsData) {
+      // Without a <data> tag, look for the JSON in whatever is not the summary.
+      const dataText = dataMatch ? dataMatch[1] : reply.replace(summaryMatch?.[0] ?? '', '');
+      data = asObject(parseJsonReply<unknown>(dataText)) ?? {};
+    }
+    
+    if (plan.summary && !summary) {
+      // The model ignored the tags: accept a summary inside the JSON, or a bare reply.
+      summary = asText(data.summary) ?? (expectsData ? '' : reply.trim());
+    }
+    
+    const enrichment: AIEnrichment = {
+      summary,
+      actionItems: this.parseActionItems(data.actionItems),
+      decisions: asTexts(data.decisions),
+      suggestedTags: asTexts(data.suggestedTags ?? data.tags).map(tag =>
+        tag.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      ),
+    };
+    
+    if (plan.participants.length > 0) {
+      enrichment.participantInsights = this.parseParticipants(data.participants);
+    }
+    if (plan.entities) {
+      enrichment.entities = {
+        issues: this.parseEntities(data.issues, 'issue'),
+        updates: this.parseEntities(data.updates, 'update'),
+        topics: this.parseEntities(data.topics, 'topic'),
+      };
+    }
+    
+    return {
+      enrichment,
+      statusUpdates: plan.knownEntities.length > 0 ? this.parseStatusUpdates(data.statusUpdates) : [],
+    };
+  }
+  
+  private parseActionItems(value: unknown, assignee?: string): ActionItem[] {
+    const items: ActionItem[] = [];
+    for (const raw of asArray(value)) {
+      const item = asObject(raw);
+      const task = item ? asText(item.task) : asText(raw);
+      if (!task) continue;
+      items.push({
+        task,
+        assignee: assignee ?? (item ? asText(item.assignee) : undefined),
+        dueDate: item ? (asText(item.dueDate) ?? asText(item.due_date)) : undefined,
+      });
+    }
+    return items;
+  }
+  
+  private parseParticipants(value: unknown): ParticipantInsight[] {
+    const insights: ParticipantInsight[] = [];
+    for (const raw of asArray(value)) {
+      const item = asObject(raw);
+      const name = item ? asText(item.name) : undefined;
+      if (!item || !name) continue;
+      insights.push({
+        name,
+        role: asText(item.role),
+        keyPoints: asTexts(item.keyPoints),
+        actionItems: this.parseActionItems(item.actionItems, name),
+        wins: asTexts(item.wins),
+        sentiment: asText(item.sentiment),
+      });
+    }
+    return insights;
+  }
+  
+  private parseEntities(value: unknown, type: Entity['type']): Entity[] {
+    const entities: Entity[] = [];
+    for (const raw of asArray(value)) {
+      const item = asObject(raw);
+      const name = item ? asText(item.name) : undefined;
+      if (!item || !name) continue;
+      
+      const entity: Entity = { type, name };
+      const description = asText(item.description);
+      const mentionedBy = asText(item.mentionedBy);
+      const status = asText(item.status);
+      const relatedTo = asText(item.relatedTo);
+      const category = asText(item.category);
+      if (description) entity.description = description;
+      if (mentionedBy && mentionedBy.toLowerCase() !== 'null') entity.mentionedBy = mentionedBy;
+      if (status && (ENTITY_STATUSES as readonly string[]).includes(status)) entity.status = status as EntityStatus;
+      if (relatedTo) entity.relatedTo = relatedTo;
+      if (category) entity.category = category;
+      entities.push(entity);
+    }
+    return entities;
+  }
+  
+  private parseStatusUpdates(value: unknown): EntityStatusUpdate[] {
+    const updates: EntityStatusUpdate[] = [];
+    for (const raw of asArray(value)) {
+      const item = asObject(raw);
+      const entityName = item ? asText(item.entityName) : undefined;
+      const newStatus = item ? asText(item.newStatus) : undefined;
+      if (!item || !entityName || !newStatus || !(ENTITY_STATUSES as readonly string[]).includes(newStatus)) continue;
+      
+      const entityType = asText(item.entityType);
+      updates.push({
+        entityName,
+        entityType: entityType === 'update' || entityType === 'topic' ? entityType : 'issue',
+        newStatus: newStatus as EntityStatus,
+        reason: asText(item.reason),
+      });
+    }
+    return updates;
+  }
+  
+  // ==================== Long transcripts ====================
+  
+  /**
+   * Split transcript segments into chunks of ~30 minutes each
+   */
+  private splitIntoChunks(segments: TranscriptSegment[]): TranscriptSegment[][] {
+    const chunks: TranscriptSegment[][] = [];
+    let currentChunk: TranscriptSegment[] = [];
+    let chunkStartTime = segments[0]?.timestamp || 0;
+    
+    for (const segment of segments) {
+      if (segment.timestamp - chunkStartTime > CHUNK_DURATION_SECONDS && currentChunk.length > 0) {
+        chunks.push(currentChunk);
+        currentChunk = [];
+        chunkStartTime = segment.timestamp;
+      }
+      currentChunk.push(segment);
+    }
+    
+    if (currentChunk.length > 0) {
+      chunks.push(currentChunk);
+    }
+    
+    return chunks;
+  }
+  
+  /**
+   * Merge the analyses of several chunks into one.
+   */
+  private mergeAnalyses(results: MeetingAnalysis[]): MeetingAnalysis {
+    if (results.length === 1) {
+      return results[0];
+    }
+    
+    const enrichments = results.map(result => result.enrichment);
+    const summaries = enrichments.map(e => e.summary).filter(s => s);
+    
+    // Combine summaries into hierarchical summary
+    let summary = '';
+    if (summaries.length === 1) {
+      summary = summaries[0];
+    } else if (summaries.length > 1) {
+      summary = [`**Overall:** ${summaries[0]}`, ...summaries.slice(1).map((s, i) => `**Part ${i + 2}:** ${s}`)].join('\n\n');
+    }
+    
+    const enrichment: AIEnrichment = {
+      summary,
+      actionItems: dedupeBy(enrichments.flatMap(e => e.actionItems), item => item.task),
+      decisions: [...new Set(enrichments.flatMap(e => e.decisions))],
+      suggestedTags: [...new Set(enrichments.flatMap(e => e.suggestedTags))].slice(0, 5),
+    };
+    
+    if (enrichments.some(e => e.participantInsights)) {
+      enrichment.participantInsights = this.mergeParticipants(enrichments.flatMap(e => e.participantInsights ?? []));
+    }
+    if (enrichments.some(e => e.entities)) {
+      enrichment.entities = {
+        issues: this.mergeEntities(enrichments.flatMap(e => e.entities?.issues ?? [])),
+        updates: this.mergeEntities(enrichments.flatMap(e => e.entities?.updates ?? [])),
+        topics: this.mergeEntities(enrichments.flatMap(e => e.entities?.topics ?? [])),
+      };
+    }
+    
+    // A later chunk knows better than an earlier one what state something ended in.
+    const statusUpdates = new Map<string, EntityStatusUpdate>();
+    for (const update of results.flatMap(result => result.statusUpdates)) {
+      statusUpdates.set(`${update.entityType}:${update.entityName.toLowerCase()}`, update);
+    }
+    
+    return { enrichment, statusUpdates: [...statusUpdates.values()] };
+  }
+  
+  private mergeParticipants(insights: ParticipantInsight[]): ParticipantInsight[] {
+    const merged = new Map<string, ParticipantInsight>();
+    for (const insight of insights) {
+      const existing = merged.get(insight.name.toLowerCase());
+      if (!existing) {
+        merged.set(insight.name.toLowerCase(), { ...insight });
+        continue;
+      }
+      existing.role = existing.role ?? insight.role;
+      existing.sentiment = existing.sentiment ?? insight.sentiment;
+      existing.keyPoints = [...new Set([...existing.keyPoints, ...insight.keyPoints])];
+      existing.wins = [...new Set([...(existing.wins ?? []), ...(insight.wins ?? [])])];
+      existing.actionItems = dedupeBy([...existing.actionItems, ...insight.actionItems], item => item.task);
+    }
+    return [...merged.values()];
+  }
+  
+  private mergeEntities(entities: Entity[]): Entity[] {
+    const merged = new Map<string, Entity>();
+    for (const entity of entities) {
+      const existing = merged.get(entity.name.toLowerCase());
+      if (!existing) {
+        merged.set(entity.name.toLowerCase(), { ...entity });
+        continue;
+      }
+      existing.description = existing.description ?? entity.description;
+      existing.mentionedBy = existing.mentionedBy ?? entity.mentionedBy;
+      existing.category = existing.category ?? entity.category;
+      existing.relatedTo = existing.relatedTo ?? entity.relatedTo;
+      existing.status = entity.status ?? existing.status;
+    }
+    return [...merged.values()];
+  }
+  
+  /**
+   * Format segments for AI processing
+   */
+  private formatSegmentsForAI(segments: TranscriptSegment[]): string {
+    return segments.map(seg => {
+      const speaker = seg.speaker ? `${seg.speaker}: ` : '';
+      return `${speaker}${seg.text}`;
+    }).join('\n');
   }
   
   /**
@@ -236,465 +617,57 @@ ${transcriptText}`;
       return enriched;
     });
   }
+
+  // ==================== Note synthesis ====================
   
   /**
-   * Parse participant insights from AI response
-   */
-  private parseParticipantInsights(response: string): ParticipantInsight[] {
-    try {
-      const data = parseJsonReply<unknown>(response) as { participants?: Array<{
-        name?: string;
-        role?: string;
-        keyPoints?: string[];
-        actionItems?: Array<string | { task?: string; dueDate?: string; due_date?: string }>;
-        wins?: string[];
-        sentiment?: string;
-      }> };
-      const participants = data.participants || [];
-      
-      return participants.map((p) => ({
-        name: p.name || '',
-        role: p.role || undefined,
-        keyPoints: p.keyPoints || [],
-        actionItems: (p.actionItems || []).map((item) => ({
-          task: typeof item === 'string' ? item : (item.task || ''),
-          assignee: p.name,
-          dueDate: typeof item === 'object' && item !== null ? (item.dueDate || item.due_date || undefined) : undefined,
-        })),
-        wins: p.wins || [],
-        sentiment: p.sentiment || undefined,
-      }));
-    } catch (error) {
-      console.error('Meeting Goose: failed to parse participant insights', error);
-      return [];
-    }
-  }
-  
-  /**
-   * Extract entities (issues, updates, topics) from transcript
-   */
-  async extractEntities(transcript: RawTranscript): Promise<EntityExtraction | null> {
-    if (!this.isEnabled()) {
-      return null;
-    }
-    
-    const transcriptText = this.formatTranscriptForAI(transcript);
-    
-    const prompt = `Analyze this meeting transcript and extract the following entities:
-
-ISSUES: Technical problems, blockers, bugs, or challenges mentioned. These should be specific, actionable problems that need resolution.
-Format: { "name": "Issue name", "description": "Brief context", "mentionedBy": "Person who raised it", "status": "in-progress|blocked|resolved" }
-
-UPDATES: Progress updates, milestones, status changes, completion announcements. These should be substantive updates about work progress.
-Format: { "name": "Update name", "description": "What changed", "status": "in-progress|completed|blocked", "mentionedBy": "Person who owns this work" }
-
-TOPICS: Important concepts, systems, initiatives, or recurring themes discussed. These should be significant topics that are worth documenting.
-Format: { "name": "Topic name", "description": "What it is", "category": "technical|process|product", "mentionedBy": "Person who owns or leads this topic" }
-
-Return as JSON:
-{
-  "issues": [
-    {
-      "name": "Issue name",
-      "description": "Brief description",
-      "mentionedBy": "Person name or null",
-      "status": "in-progress|blocked|resolved"
-    }
-  ],
-  "updates": [
-    {
-      "name": "Update name",
-      "description": "What changed",
-      "status": "in-progress|completed|blocked",
-      "mentionedBy": "Person name or null"
-    }
-  ],
-  "topics": [
-    {
-      "name": "Topic name",
-      "description": "What it is",
-      "category": "technical|process|product",
-      "mentionedBy": "Person name or null"
-    }
-  ]
-}
-
-Only extract clear, substantive mentions. Return empty arrays if none found. Return valid JSON only. Inside string values, escape double quotes as \\" and line breaks as \\n.
-
-TRANSCRIPT:
-${transcriptText}`;
-
-    try {
-      const response = await this.runner.sendPrompt(prompt);
-      
-      return this.parseEntityExtraction(response);
-    } catch (error) {
-      console.error('Meeting Goose: failed to extract entities', error);
-      return null;
-    }
-  }
-  
-  /**
-   * Parse entity extraction from AI response
-   */
-  private parseEntityExtraction(response: string): EntityExtraction {
-    try {
-      const data = parseJsonReply<unknown>(response) as {
-        issues?: Array<Record<string, unknown>>;
-        updates?: Array<Record<string, unknown>>;
-        topics?: Array<Record<string, unknown>>;
-      };
-      
-      const parseEntity = (item: Record<string, unknown>, type: 'issue' | 'update' | 'topic'): Entity => {
-        const entity: Entity = {
-          type,
-          name: typeof item.name === 'string' ? item.name : '',
-        };
-        
-        if (typeof item.description === 'string') {
-          entity.description = item.description;
-        }
-        if (typeof item.mentionedBy === 'string') {
-          entity.mentionedBy = item.mentionedBy;
-        }
-        if (typeof item.status === 'string' && ['in-progress', 'completed', 'blocked'].includes(item.status)) {
-          entity.status = item.status as 'in-progress' | 'completed' | 'blocked';
-        }
-        if (typeof item.relatedTo === 'string') {
-          entity.relatedTo = item.relatedTo;
-        }
-        if (typeof item.category === 'string') {
-          entity.category = item.category;
-        }
-        
-        return entity;
-      };
-      
-      return {
-        issues: (data.issues || []).map((item) => parseEntity(item, 'issue')),
-        updates: (data.updates || []).map((item) => parseEntity(item, 'update')),
-        topics: (data.topics || []).map((item) => parseEntity(item, 'topic')),
-      };
-    } catch (error) {
-      console.error('Meeting Goose: failed to parse entity extraction', error);
-      return {
-        issues: [],
-        updates: [],
-        topics: [],
-      };
-    }
-  }
-  
-  /**
-   * Synthesize a new description by combining existing content with new information
-   * Used to update entity and participant notes with accumulated context
-   */
-  async synthesizeDescription(
-    entityName: string,
-    entityType: 'issue' | 'topic' | 'person',
-    existingDescription: string,
-    newContext: string,
-    meetingTitle: string
-  ): Promise<string | null> {
-    if (!this.isEnabled()) {
-      return null;
-    }
-    
-    const prompt = `You are updating a knowledge base entry. Synthesize the existing description with new information from a recent meeting.
-
-ENTITY: ${entityName}
-TYPE: ${entityType}
-
-EXISTING DESCRIPTION:
-${existingDescription || '(No existing description)'}
-
-NEW CONTEXT FROM "${meetingTitle}":
-${newContext}
-
-INSTRUCTIONS:
-1. Create a comprehensive, synthesized description that incorporates both the existing information and new context
-2. Keep the most important and relevant details from both sources
-3. Remove redundancy - don't repeat the same information
-4. Maintain a professional, concise tone
-5. For people: focus on their role, responsibilities, current projects, and expertise
-6. For issues: focus on the problem, impact, current status, and any progress
-7. For topics: focus on what it is, why it matters, and current state
-8. Keep it to 2-4 sentences maximum
-9. Write in present tense
-
-Return ONLY the synthesized description text, no JSON or extra formatting.`;
-
-    try {
-      const response = await this.runner.sendPrompt(prompt);
-      
-      // Clean up the response - remove any quotes or extra whitespace
-      return response.trim().replace(/^["']|["']$/g, '');
-    } catch (error) {
-      console.error('Meeting Goose: failed to synthesize description', error);
-      return null;
-    }
-  }
-  
-  /**
-   * Synthesize a person's "About" section based on accumulated meeting context
-   */
-  async synthesizePersonAbout(
-    personName: string,
-    existingAbout: string,
-    recentMeetingContext: string,
-    meetingTitle: string
-  ): Promise<string | null> {
-    if (!this.isEnabled()) {
-      return null;
-    }
-    
-    const prompt = `You are updating a person's profile in a knowledge base. Synthesize what we know about them.
-
-PERSON: ${personName}
-
-EXISTING "ABOUT" SECTION:
-${existingAbout || '(No existing information)'}
-
-NEW CONTEXT FROM "${meetingTitle}":
-${recentMeetingContext}
-
-INSTRUCTIONS:
-1. Create a comprehensive "About" section that captures who this person is professionally
-2. Include: their role, what they're working on, their expertise, and responsibilities
-3. Incorporate new information without losing important existing context
-4. Write in third person (e.g., "The engineering lead owns the frontend team...")
-5. Keep it concise: 2-4 sentences
-6. Focus on actionable, useful information for someone who needs to work with them
-
-Return ONLY the synthesized "About" text, no JSON or extra formatting.`;
-
-    try {
-      const response = await this.runner.sendPrompt(prompt);
-      
-      return response.trim().replace(/^["']|["']$/g, '');
-    } catch (error) {
-      console.error('Meeting Goose: failed to synthesize person about', error);
-      return null;
-    }
-  }
-  
-  /**
-   * Process a long transcript by chunking
-   */
-  private async processLongTranscript(transcript: RawTranscript, _fullText: string): Promise<AIEnrichment> {
-    // Split into chunks based on time segments (~30 min each)
-    const chunks = this.splitIntoChunks(transcript.segments);
-    const chunkResults: AIEnrichment[] = [];
-    
-    for (const chunk of chunks) {
-      const chunkText = this.formatSegmentsForAI(chunk);
-      const result = await this.processChunk(chunkText);
-      if (result) {
-        chunkResults.push(result);
-      }
-    }
-    
-    // Merge results
-    return this.mergeChunkResults(chunkResults);
-  }
-  
-  /**
-   * Split transcript segments into chunks of ~30 minutes each
-   */
-  private splitIntoChunks(segments: TranscriptSegment[]): TranscriptSegment[][] {
-    const chunks: TranscriptSegment[][] = [];
-    const CHUNK_DURATION = 30 * 60; // 30 minutes in seconds
-    
-    let currentChunk: TranscriptSegment[] = [];
-    let chunkStartTime = segments[0]?.timestamp || 0;
-    
-    for (const segment of segments) {
-      if (segment.timestamp - chunkStartTime > CHUNK_DURATION && currentChunk.length > 0) {
-        chunks.push(currentChunk);
-        currentChunk = [];
-        chunkStartTime = segment.timestamp;
-      }
-      currentChunk.push(segment);
-    }
-    
-    if (currentChunk.length > 0) {
-      chunks.push(currentChunk);
-    }
-    
-    return chunks;
-  }
-  
-  /**
-   * Merge enrichment results from multiple chunks
-   */
-  private mergeChunkResults(results: AIEnrichment[]): AIEnrichment {
-    const allActionItems = results.flatMap(r => r.actionItems);
-    const allDecisions = results.flatMap(r => r.decisions);
-    const allSummaries = results.map(r => r.summary).filter(s => s);
-    const allTags = results.flatMap(r => r.suggestedTags);
-    
-    // Deduplicate action items by task text
-    const uniqueActionItems = allActionItems.filter((item, index, self) =>
-      index === self.findIndex(t => t.task.toLowerCase() === item.task.toLowerCase())
-    );
-    
-    // Deduplicate decisions
-    const uniqueDecisions = [...new Set(allDecisions)];
-    
-    // Deduplicate tags
-    const uniqueTags = [...new Set(allTags)].slice(0, 5);
-    
-    // Combine summaries into hierarchical summary
-    let combinedSummary = '';
-    if (allSummaries.length === 1) {
-      combinedSummary = allSummaries[0];
-    } else if (allSummaries.length > 1) {
-      combinedSummary = `**Overall:** ${allSummaries[0]}\n\n`;
-      allSummaries.slice(1).forEach((summary, i) => {
-        combinedSummary += `**Part ${i + 2}:** ${summary}\n\n`;
-      });
-      combinedSummary = combinedSummary.trim();
-    }
-    
-    return {
-      summary: combinedSummary,
-      actionItems: uniqueActionItems,
-      decisions: uniqueDecisions,
-      suggestedTags: uniqueTags,
-    };
-  }
-  
-  /**
-   * Process a single chunk of transcript
-   */
-  private async processChunk(transcriptText: string): Promise<AIEnrichment | null> {
-    const prompt = this.buildPrompt(transcriptText);
-    
-    try {
-      const response = await this.runner.sendPrompt(prompt);
-      
-      return this.parseResponse(response);
-    } catch (error) {
-      console.error('Meeting Goose: AI processing failed', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Build the prompt for AI enrichment
-   */
-  private buildPrompt(transcriptText: string): string {
-    const sections: string[] = [];
-    
-    // Estimate meeting length to scale summary depth
-    const wordCount = transcriptText.split(/\s+/).length;
-    const estimatedMinutes = Math.round(wordCount / 150); // ~150 wpm for transcripts
-    
-    if (this.enableSummary) {
-      let summaryInstruction: string;
-      
-      if (estimatedMinutes <= 15) {
-        // Short meeting: concise summary
-        summaryInstruction = `SUMMARY: Return a markdown-formatted summary with:
-- **TL;DR** — 1-2 sentences capturing the essential outcome.
-- **Key Discussion Points** — 2-4 bullet points covering what was discussed, with enough context that someone who missed the meeting understands what happened and why it matters.
-- **Context & Background** — 1 sentence noting any references to prior work, external dependencies, or upcoming deadlines mentioned. Omit if none.`;
-      } else if (estimatedMinutes <= 30) {
-        // Medium meeting: moderate depth
-        summaryInstruction = `SUMMARY: Return a markdown-formatted summary with:
-- **TL;DR** — 2-3 sentences capturing the essential outcomes and any shifts in direction.
-- **Key Discussion Points** — 4-6 bullet points covering major topics. Each bullet should include enough context that someone who missed the meeting understands what was discussed, what positions were taken, and why it matters.
-- **Context & Background** — 2-3 sentences noting references to prior work, external dependencies, open questions carried forward, or upcoming deadlines mentioned.`;
-      } else {
-        // Long meeting (30+ min): thorough summary
-        summaryInstruction = `SUMMARY: Return a markdown-formatted summary with:
-- **TL;DR** — 3-4 sentences capturing the essential outcomes, key shifts, and overall trajectory.
-- **Key Discussion Points** — 6-10 bullet points covering all major topics and sub-topics. Each bullet should provide substantive context: what was discussed, who drove it, what positions or concerns were raised, and what the resolution or next step is.
-- **Context & Background** — 3-5 sentences covering references to prior meetings or decisions, external dependencies, cross-team implications, open questions, and upcoming deadlines or milestones mentioned.`;
-      }
-      
-      sections.push(summaryInstruction);
-    }
-    
-    if (this.enableActionItems) {
-      sections.push('ACTION_ITEMS: A list of action items, tasks, commitments, or follow-ups mentioned. For each, include the task description, and if mentioned, the assignee and due date. If no action items are present, return an empty array.');
-    }
-    
-    if (this.enableDecisions) {
-      sections.push('DECISIONS: A list of explicit decisions made during the meeting. If no decisions were made, return an empty array.');
-    }
-    
-    if (this.enableTagSuggestions) {
-      const tagsHint = this.existingTags.length > 0 
-        ? `Consider using these existing tags from the vault when relevant: ${this.existingTags.slice(0, 20).join(', ')}.`
-        : '';
-      sections.push(`TAGS: 3-5 relevant tags based on topics discussed. ${tagsHint}`);
-    }
-    
-    return `Analyze the following meeting transcript and extract the requested information.
-
-Return your response in the following JSON format:
-{
-  "summary": "string (markdown formatted — use **bold** for sub-headings, bullet points with -, etc.)",
-  "actionItems": [{"task": "string", "assignee": "string or null", "dueDate": "string or null"}],
-  "decisions": ["string"],
-  "suggestedTags": ["string"]
-}
-
-Only include the sections that are requested. Return valid JSON only, no additional text. Inside string values, escape double quotes as \\" and line breaks as \\n.
-The summary value should be a single string containing markdown formatting (newlines as \\n).
-
-Requested sections:
-${sections.join('\n')}
-
-MEETING TRANSCRIPT:
-${transcriptText}`;
-  }
-  
-  /**
-   * Parse AI response into enrichment object.
+   * Rewrite the descriptions of existing notes so they absorb what a meeting
+   * added, all in one agent round-trip.
    *
-   * Throws when the reply holds no usable JSON: a note silently missing its
-   * summary is much harder to diagnose than a visible failure.
+   * Returns the new text by request id. Requests the agent skipped are simply
+   * absent, and an empty request list costs nothing.
    */
-  private parseResponse(response: string): AIEnrichment {
-    const data = parseJsonReply<{
-      summary?: string;
-      actionItems?: Array<string | { task?: string; assignee?: string; dueDate?: string; due_date?: string }>;
-      decisions?: string[];
-      suggestedTags?: string[];
-      tags?: string[];
-    }>(response);
+  async synthesizeNotes(requests: SynthesisRequest[], meetingTitle: string): Promise<Map<string, string>> {
+    const results = new Map<string, string>();
+    if (!this.isEnabled() || requests.length === 0) {
+      return results;
+    }
     
-    return {
-      summary: data.summary || '',
-      actionItems: (data.actionItems || []).map((item) => ({
-        task: typeof item === 'string' ? item : (item.task || ''),
-        assignee: typeof item === 'object' && item !== null ? (item.assignee || undefined) : undefined,
-        dueDate: typeof item === 'object' && item !== null ? (item.dueDate || item.due_date || undefined) : undefined,
-      })),
-      decisions: data.decisions || [],
-      suggestedTags: (data.suggestedTags || data.tags || []).map((tag: string) => 
-        tag.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      ),
-    };
-  }
-  
-  /**
-   * Format transcript for AI processing
-   */
-  private formatTranscriptForAI(transcript: RawTranscript): string {
-    return this.formatSegmentsForAI(transcript.segments);
-  }
-  
-  /**
-   * Format segments for AI processing
-   */
-  private formatSegmentsForAI(segments: TranscriptSegment[]): string {
-    return segments.map(seg => {
-      const speaker = seg.speaker ? `${seg.speaker}: ` : '';
-      return `${speaker}${seg.text}`;
-    }).join('\n');
+    const entries = requests.map((request, index) =>
+      `[${index + 1}] ${request.kind}: ${request.name}\n` +
+      `Existing: ${request.existing || '(none)'}\n` +
+      `New: ${request.newContext}`
+    ).join('\n\n');
+    
+    const prompt = `You maintain a knowledge base. For each entry below, write an updated description that merges the existing text with the new context from the meeting "${meetingTitle}".
+
+Rules for every description:
+- 2-4 sentences, present tense, professional and concise.
+- Keep the important details from both sources and drop redundancy.
+- person: third person; their role, what they are working on, expertise, and responsibilities.
+- issue: the problem, its impact, current status, and any progress.
+- topic: what it is, why it matters, and its current state.
+
+Reply with one JSON object and nothing else, with one result per entry:
+{"results": [{"id": 1, "text": "string"}]}
+Escape double quotes inside strings as \\".
+
+ENTRIES:
+${entries}`;
+    
+    const reply = await this.runner.sendPrompt(prompt);
+    const data = asObject(parseJsonReply<unknown>(reply)) ?? {};
+    
+    for (const raw of asArray(data.results)) {
+      const item = asObject(raw);
+      const text = item ? asText(item.text) : undefined;
+      const request = item ? requests[Number(item.id) - 1] : undefined;
+      if (request && text) {
+        // Models sometimes wrap the whole text in quotes.
+        results.set(request.id, text.replace(/^["']|["']$/g, ''));
+      }
+    }
+    return results;
   }
   
   /**
@@ -710,107 +683,6 @@ ${transcriptText}`;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Connection failed';
       return { success: false, message: errorMessage };
-    }
-  }
-  
-  /**
-   * Analyze meeting context to detect status changes for existing entities
-   * Checks if issues are resolved, updates are completed/stale, etc.
-   */
-  async analyzeEntityStatusChanges(
-    transcript: RawTranscript,
-    existingEntities: Array<{ name: string; type: 'issue' | 'update' | 'topic'; currentStatus?: string }>
-  ): Promise<EntityStatusUpdate[]> {
-    if (!this.isEnabled() || existingEntities.length === 0) {
-      return [];
-    }
-    
-    const transcriptText = this.formatTranscriptForAI(transcript);
-    const entitiesList = existingEntities.map(e => `- ${e.name} (${e.type}, current: ${e.currentStatus || 'none'})`).join('\n');
-    
-    const prompt = `Analyze this meeting transcript and determine if any of these existing entities have status changes.
-
-EXISTING ENTITIES:
-${entitiesList}
-
-For each entity mentioned in the meeting, determine:
-- If an ISSUE was resolved, fixed, or closed → status: "resolved"
-- If an UPDATE was completed or finished → status: "completed"  
-- If an UPDATE or ISSUE hasn't been mentioned in a while and seems outdated → status: "stale"
-- If an ISSUE is still being worked on → status: "in-progress"
-- If an ISSUE is blocked → status: "blocked"
-
-Return as JSON:
-{
-  "statusUpdates": [
-    {
-      "entityName": "Exact name from list above",
-      "entityType": "issue|update|topic",
-      "newStatus": "resolved|completed|stale|in-progress|blocked",
-      "reason": "Brief explanation of why status changed"
-    }
-  ]
-}
-
-Only include entities that have clear status changes mentioned in the meeting. Return empty array if none. Return valid JSON only. Inside string values, escape double quotes as \\" and line breaks as \\n.
-
-TRANSCRIPT:
-${transcriptText}`;
-
-    try {
-      const response = await this.runner.sendPrompt(prompt);
-      
-      return this.parseEntityStatusUpdates(response);
-    } catch (error) {
-      console.error('Meeting Goose: failed to analyze entity status changes', error);
-      return [];
-    }
-  }
-  
-  /**
-   * Parse entity status updates from AI response
-   */
-  private parseEntityStatusUpdates(response: string): EntityStatusUpdate[] {
-    try {
-      const data = parseJsonReply<unknown>(response) as {
-        statusUpdates?: Array<{
-          entityName?: string;
-          entityType?: 'issue' | 'update' | 'topic';
-          newStatus?: string;
-          reason?: string;
-        }>;
-      };
-      
-      if (!data.statusUpdates || !Array.isArray(data.statusUpdates)) {
-        return [];
-      }
-      
-      const validStatuses = ['in-progress', 'completed', 'blocked', 'resolved', 'stale'] as const;
-      
-      const updates: EntityStatusUpdate[] = [];
-      
-      for (const update of data.statusUpdates) {
-        const entityName = update.entityName || '';
-        if (!entityName) continue;
-        
-        const newStatus = update.newStatus && typeof update.newStatus === 'string' && validStatuses.includes(update.newStatus as typeof validStatuses[number])
-          ? (update.newStatus as typeof validStatuses[number])
-          : undefined;
-        
-        if (!newStatus) continue;
-        
-        updates.push({
-          entityName,
-          entityType: (update.entityType || 'issue'),
-          newStatus,
-          reason: update.reason,
-        });
-      }
-      
-      return updates;
-    } catch (error) {
-      console.error('Meeting Goose: failed to parse entity status updates', error);
-      return [];
     }
   }
 }

@@ -4,7 +4,7 @@
 
 import { App, TFile, normalizePath } from 'obsidian';
 import { Entity, EntityExtraction } from '../types';
-import { AIService } from './AIService';
+import type { SynthesisRequest } from './AIService';
 
 export interface EntityInfo {
   entity: Entity;
@@ -14,7 +14,6 @@ export interface EntityInfo {
 
 export class EntityService {
   private app: App;
-  private aiService: AIService | null;
   private issuesFolder: string;
   private updatesFolder: string;
   private topicsFolder: string;
@@ -22,22 +21,14 @@ export class EntityService {
   private enableTopics: boolean;
   private enrichManualNotes: boolean;
   
-  constructor(app: App, aiService?: AIService) {
+  constructor(app: App) {
     this.app = app;
-    this.aiService = aiService || null;
     this.issuesFolder = 'Issues';
     this.updatesFolder = 'Updates';
     this.topicsFolder = 'Topics';
     this.enableIssues = true;
     this.enableTopics = true;
     this.enrichManualNotes = false;
-  }
-  
-  /**
-   * Set the AI service for synthesis operations
-   */
-  setAIService(aiService: AIService): void {
-    this.aiService = aiService;
   }
   
   /**
@@ -183,14 +174,75 @@ export class EntityService {
   }
   
   /**
+   * List the existing issue and topic notes whose description should be
+   * rewritten for this meeting, so the caller can have them all synthesized in
+   * one agent round-trip and pass the results to processEntities().
+   *
+   * Request ids are note paths.
+   */
+  async collectSynthesisRequests(entities: EntityExtraction, meetingPath: string): Promise<SynthesisRequest[]> {
+    const requests: SynthesisRequest[] = [];
+    const meetingLink = meetingPath.replace(/\.md$/, '');
+    const candidates: Entity[] = [
+      ...(this.enableIssues ? entities.issues : []),
+      ...(this.enableTopics ? entities.topics : []),
+    ];
+    
+    for (const entity of candidates) {
+      if (!entity.description) continue;
+      const notePath = this.findEntityNote(entity);
+      if (!notePath) continue;
+      
+      const file = this.app.vault.getAbstractFileByPath(notePath);
+      if (!(file instanceof TFile)) continue;
+      
+      const content = await this.app.vault.read(file);
+      // A note that already references this meeting is left untouched.
+      if (content.includes(meetingLink)) continue;
+      
+      requests.push({
+        id: notePath,
+        kind: entity.type === 'issue' ? 'issue' : 'topic',
+        name: entity.name,
+        existing: this.extractDescription(content),
+        newContext: entity.description,
+      });
+    }
+    
+    return requests;
+  }
+  
+  /**
+   * The note's current description: its Description section, or for a
+   * manually-written note without one, the text under the title.
+   */
+  private extractDescription(content: string): string {
+    const descriptionMatch = content.match(/## Description\s*\n\n([\s\S]*?)(?=\n\n(?:\*\*|##)|$)/);
+    const existingDescription = descriptionMatch ? descriptionMatch[1].trim() : '';
+    if (existingDescription || content.includes('## Description')) {
+      return existingDescription;
+    }
+    
+    const contentWithoutFrontmatter = content.replace(/^---\s*\n([\s\S]*?)\n---\s*\n/m, '');
+    const contentAfterTitle = contentWithoutFrontmatter.replace(/^# .+\n+/m, '').trim();
+    if (contentAfterTitle && !contentAfterTitle.startsWith('##')) {
+      return contentAfterTitle.split('\n##')[0].trim();
+    }
+    return '';
+  }
+  
+  /**
    * Process entities and create/update notes
    * Note: Updates are no longer created as separate notes, only used for People note enrichment
+   *
+   * @param syntheses - rewritten descriptions by note path, from collectSynthesisRequests()
    */
   async processEntities(
     entities: EntityExtraction,
     meetingTitle: string,
     meetingPath: string,
-    meetingDate: Date
+    meetingDate: Date,
+    syntheses?: Map<string, string>
   ): Promise<{ created: string[]; updated: string[] }> {
     const created: string[] = [];
     const updated: string[] = [];
@@ -201,7 +253,7 @@ export class EntityService {
       for (const issue of entities.issues) {
         const existingPath = this.findEntityNote(issue);
         if (existingPath) {
-          await this.updateEntityNote(existingPath, issue, meetingTitle, meetingPath, meetingDate);
+          await this.updateEntityNote(existingPath, issue, meetingTitle, meetingPath, meetingDate, syntheses?.get(existingPath));
           updated.push(issue.name);
         } else {
           const newPath = await this.createEntityNote(issue, this.issuesFolder, meetingTitle, meetingPath, meetingDate);
@@ -221,7 +273,7 @@ export class EntityService {
       for (const topic of entities.topics) {
         const existingPath = this.findEntityNote(topic);
         if (existingPath) {
-          await this.updateEntityNote(existingPath, topic, meetingTitle, meetingPath, meetingDate);
+          await this.updateEntityNote(existingPath, topic, meetingTitle, meetingPath, meetingDate, syntheses?.get(existingPath));
           updated.push(topic.name);
         } else {
           const newPath = await this.createEntityNote(topic, this.topicsFolder, meetingTitle, meetingPath, meetingDate);
@@ -403,7 +455,8 @@ created: ${date}`;
     entity: Entity,
     meetingTitle: string,
     meetingPath: string,
-    meetingDate: Date
+    meetingDate: Date,
+    synthesizedDescription?: string
   ): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) return;
@@ -434,60 +487,34 @@ ${entity.category ? `category: ${entity.category}` : ''}
         console.debug(`Meeting Goose: added frontmatter to manually-created note ${notePath}`);
       }
       
-      // Extract existing description for synthesis
-      const descriptionMatch = content.match(/## Description\s*\n\n([\s\S]*?)(?=\n\n(?:\*\*|##)|$)/);
-      const existingDescription = descriptionMatch ? descriptionMatch[1].trim() : '';
-      
-      // If no Description section exists, try to use existing content as description
-      let contentForSynthesis = existingDescription;
-      if (!existingDescription && !content.includes('## Description')) {
-        // Extract content after title/frontmatter as the existing description
-        const contentWithoutFrontmatter = content.replace(frontmatterRegex, '');
-        const contentAfterTitle = contentWithoutFrontmatter.replace(/^# .+\n+/m, '').trim();
-        if (contentAfterTitle && !contentAfterTitle.startsWith('##')) {
-          contentForSynthesis = contentAfterTitle.split('\n##')[0].trim();
-        }
-      }
-      
-      // Synthesize new description using AI if available
-      if (this.aiService && entity.description) {
-        const entityType = entity.type === 'issue' ? 'issue' : 'topic';
-        const synthesizedDescription = await this.aiService.synthesizeDescription(
-          entity.name,
-          entityType,
-          contentForSynthesis,
-          entity.description,
-          meetingTitle
-        );
-        
-        if (synthesizedDescription) {
-          // Update the description section with synthesized content
-          if (content.includes('## Description')) {
-            content = content.replace(
-              /## Description\s*\n\n[\s\S]*?(?=\n\n(?:\*\*|##)|$)/,
-              `## Description\n\n${synthesizedDescription}`
-            );
+      // Replace the description with the text synthesized for this meeting
+      if (synthesizedDescription) {
+        // Update the description section with synthesized content
+        if (content.includes('## Description')) {
+          content = content.replace(
+            /## Description\s*\n\n[\s\S]*?(?=\n\n(?:\*\*|##)|$)/,
+            `## Description\n\n${synthesizedDescription}`
+          );
+        } else {
+          // Add description section after the title/frontmatter
+          const titleMatch = content.match(/^# .+\n\n/m);
+          if (titleMatch) {
+            const insertPos = content.indexOf(titleMatch[0]) + titleMatch[0].length;
+            content = content.slice(0, insertPos) + 
+              `## Description\n\n${synthesizedDescription}\n\n` + 
+              content.slice(insertPos);
           } else {
-            // Add description section after the title/frontmatter
-            const titleMatch = content.match(/^# .+\n\n/m);
-            if (titleMatch) {
-              const insertPos = content.indexOf(titleMatch[0]) + titleMatch[0].length;
-              content = content.slice(0, insertPos) + 
-                `## Description\n\n${synthesizedDescription}\n\n` + 
-                content.slice(insertPos);
-            } else {
-              // No title found, add at the beginning after frontmatter
-              const afterFrontmatter = content.replace(frontmatterRegex, '');
-              const frontmatterMatch = content.match(frontmatterRegex);
-              if (frontmatterMatch) {
-                content = frontmatterMatch[0] + 
-                  `# ${entity.name}\n\n## Description\n\n${synthesizedDescription}\n\n` + 
-                  afterFrontmatter;
-              }
+            // No title found, add at the beginning after frontmatter
+            const afterFrontmatter = content.replace(frontmatterRegex, '');
+            const frontmatterMatch = content.match(frontmatterRegex);
+            if (frontmatterMatch) {
+              content = frontmatterMatch[0] + 
+                `# ${entity.name}\n\n## Description\n\n${synthesizedDescription}\n\n` + 
+                afterFrontmatter;
             }
           }
-          console.debug(`Meeting Goose: synthesized description for ${entity.name}`);
         }
+        console.debug(`Meeting Goose: synthesized description for ${entity.name}`);
       }
       
       // Update status if provided and different

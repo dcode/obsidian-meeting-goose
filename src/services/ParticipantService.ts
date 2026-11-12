@@ -4,7 +4,7 @@
 
 import { App, TFile, normalizePath } from 'obsidian';
 import { ParticipantInsight } from '../types';
-import { AIService } from './AIService';
+import type { SynthesisRequest } from './AIService';
 
 export interface ParticipantInfo {
   name: string;
@@ -14,20 +14,11 @@ export interface ParticipantInfo {
 
 export class ParticipantService {
   private app: App;
-  private aiService: AIService | null;
   private peopleFolder: string;
   
-  constructor(app: App, aiService?: AIService) {
+  constructor(app: App) {
     this.app = app;
-    this.aiService = aiService || null;
     this.peopleFolder = '';
-  }
-  
-  /**
-   * Set the AI service for synthesis operations
-   */
-  setAIService(aiService: AIService): void {
-    this.aiService = aiService;
   }
   
   /**
@@ -95,14 +86,85 @@ export class ParticipantService {
   }
   
   /**
+   * List the existing participant notes whose About section should be
+   * rewritten for this meeting, so the caller can have them all synthesized in
+   * one agent round-trip and pass the results to processParticipants().
+   *
+   * Request ids are note paths.
+   */
+  async collectSynthesisRequests(
+    participants: string[],
+    meetingPath: string,
+    insights?: ParticipantInsight[]
+  ): Promise<SynthesisRequest[]> {
+    const requests: SynthesisRequest[] = [];
+    const meetingLink = meetingPath.replace(/\.md$/, '');
+    
+    for (const name of participants) {
+      const insight = insights?.find(i => i.name.toLowerCase() === name.toLowerCase());
+      const notePath = this.findParticipantNote(name);
+      if (!insight || !notePath) continue;
+      
+      const file = this.app.vault.getAbstractFileByPath(notePath);
+      if (!(file instanceof TFile)) continue;
+      
+      const content = await this.app.vault.read(file);
+      // A note that already references this meeting is left untouched.
+      if (content.includes(meetingLink)) continue;
+      
+      const newContext = this.buildAboutContext(insight);
+      if (!newContext) continue;
+      
+      requests.push({
+        id: notePath,
+        kind: 'person',
+        name: file.basename,
+        existing: this.extractAbout(content),
+        newContext,
+      });
+    }
+    
+    return requests;
+  }
+  
+  /**
+   * What a meeting revealed about a person, as one line of context.
+   */
+  private buildAboutContext(insight: ParticipantInsight): string {
+    const contextParts: string[] = [];
+    if (insight.role) contextParts.push(`Role: ${insight.role}`);
+    if (insight.keyPoints && insight.keyPoints.length > 0) {
+      contextParts.push(`Key contributions: ${insight.keyPoints.join('; ')}`);
+    }
+    if (insight.actionItems && insight.actionItems.length > 0) {
+      contextParts.push(`Working on: ${insight.actionItems.map(a => a.task).join('; ')}`);
+    }
+    if (insight.ownedTopics && insight.ownedTopics.length > 0) {
+      contextParts.push(`Owns topics: ${insight.ownedTopics.join(', ')}`);
+    }
+    if (insight.wins && insight.wins.length > 0) {
+      contextParts.push(`Recent wins: ${insight.wins.join('; ')}`);
+    }
+    return contextParts.join('. ');
+  }
+  
+  private extractAbout(content: string): string {
+    const aboutMatch = content.match(/## About\s*\n\n([\s\S]*?)(?=\n\n##|$)/);
+    return aboutMatch ? aboutMatch[1].trim() : '';
+  }
+  
+  /**
    * Create or update notes for participants with AI insights
+   *
+   * @param syntheses - rewritten About sections by note path, from collectSynthesisRequests()
    */
   async processParticipants(
     participants: string[],
     meetingTitle: string,
     meetingPath: string,
     meetingDate: Date,
-    insights?: ParticipantInsight[]
+    insights?: ParticipantInsight[],
+    syntheses?: Map<string, string>
   ): Promise<{ created: string[]; updated: string[] }> {
     const created: string[] = [];
     const updated: string[] = [];
@@ -126,7 +188,7 @@ export class ParticipantService {
       
       if (existingPath) {
         // Update existing note
-        await this.updateParticipantNote(existingPath, meetingTitle, meetingPath, meetingDate, insight);
+        await this.updateParticipantNote(existingPath, meetingTitle, meetingPath, meetingDate, insight, syntheses?.get(existingPath));
         updated.push(name);
       } else {
         // Create new participant note
@@ -290,7 +352,8 @@ tags: [person]
     meetingTitle: string,
     meetingPath: string,
     meetingDate: Date,
-    insight?: ParticipantInsight
+    insight?: ParticipantInsight,
+    synthesizedAbout?: string
   ): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) return;
@@ -309,68 +372,36 @@ tags: [person]
       // Extract person name from file path
       const personName = file.basename;
       
-      // Synthesize the About section with new context from this meeting
-      if (this.aiService && insight) {
-        // Extract existing About section content
-        const aboutMatch = content.match(/## About\s*\n\n([\s\S]*?)(?=\n\n##|$)/);
-        const existingAbout = aboutMatch ? aboutMatch[1].trim() : '';
-        
-        // Build context from insight
-        const contextParts: string[] = [];
-        if (insight.role) contextParts.push(`Role: ${insight.role}`);
-        if (insight.keyPoints && insight.keyPoints.length > 0) {
-          contextParts.push(`Key contributions: ${insight.keyPoints.join('; ')}`);
-        }
-        if (insight.actionItems && insight.actionItems.length > 0) {
-          contextParts.push(`Working on: ${insight.actionItems.map(a => a.task).join('; ')}`);
-        }
-        if (insight.ownedTopics && insight.ownedTopics.length > 0) {
-          contextParts.push(`Owns topics: ${insight.ownedTopics.join(', ')}`);
-        }
-        if (insight.wins && insight.wins.length > 0) {
-          contextParts.push(`Recent wins: ${insight.wins.join('; ')}`);
-        }
-        
-        if (contextParts.length > 0) {
-          const newContext = contextParts.join('. ');
-          const synthesizedAbout = await this.aiService.synthesizePersonAbout(
-            personName,
-            existingAbout,
-            newContext,
-            meetingTitle
+      // Replace the About section with the text synthesized for this meeting
+      if (synthesizedAbout) {
+        // Update the About section
+        if (content.includes('## About')) {
+          content = content.replace(
+            /## About\s*\n\n[\s\S]*?(?=\n\n##|$)/,
+            `## About\n\n${synthesizedAbout}`
           );
-          
-          if (synthesizedAbout) {
-            // Update the About section
-            if (content.includes('## About')) {
-              content = content.replace(
-                /## About\s*\n\n[\s\S]*?(?=\n\n##|$)/,
-                `## About\n\n${synthesizedAbout}`
-              );
-            } else {
-              // Add About section after role or at the start
-              const roleIndex = content.indexOf('**Role**:');
-              if (roleIndex !== -1) {
-                const roleEndIndex = content.indexOf('\n\n', roleIndex);
-                if (roleEndIndex !== -1) {
-                  content = content.slice(0, roleEndIndex + 2) + 
-                    `## About\n\n${synthesizedAbout}\n\n` + 
-                    content.slice(roleEndIndex + 2);
-                }
-              } else {
-                // Add after frontmatter/title
-                const titleMatch = content.match(/^# .+\n\n/m);
-                if (titleMatch) {
-                  const insertPos = content.indexOf(titleMatch[0]) + titleMatch[0].length;
-                  content = content.slice(0, insertPos) + 
-                    `## About\n\n${synthesizedAbout}\n\n` + 
-                    content.slice(insertPos);
-                }
-              }
+        } else {
+          // Add About section after role or at the start
+          const roleIndex = content.indexOf('**Role**:');
+          if (roleIndex !== -1) {
+            const roleEndIndex = content.indexOf('\n\n', roleIndex);
+            if (roleEndIndex !== -1) {
+              content = content.slice(0, roleEndIndex + 2) + 
+                `## About\n\n${synthesizedAbout}\n\n` + 
+                content.slice(roleEndIndex + 2);
             }
-            console.debug(`Meeting Goose: synthesized About section for ${personName}`);
+          } else {
+            // Add after frontmatter/title
+            const titleMatch = content.match(/^# .+\n\n/m);
+            if (titleMatch) {
+              const insertPos = content.indexOf(titleMatch[0]) + titleMatch[0].length;
+              content = content.slice(0, insertPos) + 
+                `## About\n\n${synthesizedAbout}\n\n` + 
+                content.slice(insertPos);
+            }
           }
         }
+        console.debug(`Meeting Goose: synthesized About section for ${personName}`);
       }
       
       // Update role if we have one and there's no existing role

@@ -28,6 +28,7 @@ import { TranscriptParser } from './services/TranscriptParser';
 import { VaultIndexService } from './services/VaultIndex';
 import { AutoLinker } from './services/AutoLinker';
 import { AIService } from './services/AIService';
+import type { MeetingAnalysis, SynthesisRequest } from './services/AIService';
 import { ACPService, parseAgentArgs } from './services/ACPService';
 import { FolderWatcher } from './services/FolderWatcher';
 import { OtterService } from './services/OtterService';
@@ -39,6 +40,11 @@ import { EntityService } from './services/EntityService';
 import { StatsService } from './services/StatsService';
 import { MeetingGooseSettingsTab } from './ui/SettingsTab';
 import { SyncLogModal } from './ui/SyncLogModal';
+
+/** A meeting analysis together with the entity notes it was checked against. */
+type TranscriptAnalysis = MeetingAnalysis & {
+  knownEntities: Awaited<ReturnType<EntityService['getExistingEntities']>>;
+};
 
 // Custom icon for status bar
 const SYNC_ICON = `<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"><circle cx="50" cy="50" r="40"/><path d="M50 25v25l15 15"/></svg>`;
@@ -124,8 +130,8 @@ export default class MeetingGoosePlugin extends Plugin {
     this.firefliesService = new FirefliesService();
     this.granolaService = new GranolaService();
     this.noteGenerator = new NoteGenerator(this.app);
-    this.participantService = new ParticipantService(this.app, this.aiService);
-    this.entityService = new EntityService(this.app, this.aiService);
+    this.participantService = new ParticipantService(this.app);
+    this.entityService = new EntityService(this.app);
     this.statsService = new StatsService(this.app);
     
     // Configure services with current settings
@@ -391,31 +397,14 @@ export default class MeetingGoosePlugin extends Plugin {
         return null;
       }
       
-      // Step 1: AI enrichment
-      const enrichment = await this.runAIEnrichment(transcript);
+      // Step 1: AI analysis (one agent round-trip: enrichment, insights, entities, status changes)
+      const analysis = await this.runAIEnrichment(transcript);
+      const enrichment = analysis?.enrichment ?? null;
       
       // Step 2: Auto-linking
       const suggestedLinks = this.applyAutoLinking(transcript, enrichment);
       
-      // Step 3: Extract entities (needed before participant processing)
-      let entities: EntityExtraction | null = null;
-      if (this.settings.autoExtractEntities && enrichment) {
-        entities = await this.aiService.extractEntities(transcript);
-        if (entities) {
-          enrichment.entities = entities;
-          
-          // Enrich participant insights with entity information
-          if (enrichment.participantInsights && enrichment.participantInsights.length > 0) {
-            enrichment.participantInsights = this.aiService.enrichParticipantInsightsWithEntities(
-              enrichment.participantInsights,
-              entities,
-              transcript.date
-            );
-          }
-        }
-      }
-      
-      // Step 4: Generate meeting note
+      // Step 3: Generate meeting note
       const processedMeeting: ProcessedMeeting = {
         transcript,
         enrichment: enrichment || undefined,
@@ -424,13 +413,8 @@ export default class MeetingGoosePlugin extends Plugin {
       };
       const file = await this.noteGenerator.generateNote(processedMeeting);
       
-      // Step 5: Process participants (now with enriched insights)
-      await this.handleParticipants(transcript, file, enrichment);
-      
-      // Step 6: Process entities (create/update entity notes)
-      if (entities) {
-        await this.handleEntities(transcript, file, enrichment, entities);
-      }
+      // Step 4: Update the vault notes the meeting touched
+      await this.updateRelatedNotes(transcript, file, analysis);
       
       // Mark as processed
       await this.markProcessed(transcript.hash);
@@ -446,15 +430,16 @@ export default class MeetingGoosePlugin extends Plugin {
   // ==================== Transcript Processing Steps ====================
   
   /**
-   * Run AI enrichment on the transcript if enabled
+   * Analyze the transcript with the agent, if AI enrichment is enabled.
+   * A failure is reported and the import carries on without AI.
    */
-  private async runAIEnrichment(transcript: RawTranscript): Promise<AIEnrichment | null> {
+  private async runAIEnrichment(transcript: RawTranscript): Promise<TranscriptAnalysis | null> {
     if (!this.settings.aiEnabled || !this.aiService.isEnabled()) {
       return null;
     }
     
     try {
-      return await this.aiService.processTranscript(transcript);
+      return await this.analyzeTranscript(transcript, this.settings.autoExtractEntities);
     } catch (error) {
       console.error('Meeting Goose: AI enrichment failed', error);
       const reason = error instanceof Error ? error.message : String(error);
@@ -462,6 +447,74 @@ export default class MeetingGoosePlugin extends Plugin {
       // Stays until clicked: the reason is too long to read in a few seconds.
       new Notice(`AI enrichment failed, importing without it (click to dismiss; see "View sync log"): ${reason}`, 0);
       return null; // Continue without AI enrichment
+    }
+  }
+  
+  /**
+   * One agent round-trip for everything the transcript itself can tell us.
+   * Known entity notes are listed in the prompt so their status changes come
+   * back in the same reply.
+   */
+  private async analyzeTranscript(transcript: RawTranscript, extractEntities: boolean): Promise<TranscriptAnalysis | null> {
+    const knownEntities = extractEntities ? await this.entityService.getExistingEntities() : [];
+    const analysis = await this.aiService.analyzeMeeting(transcript, {
+      extractEntities,
+      knownEntities: knownEntities.map(e => ({ name: e.name, type: e.type, currentStatus: e.currentStatus })),
+    });
+    return analysis ? { ...analysis, knownEntities } : null;
+  }
+  
+  /**
+   * Update participant and entity notes after the meeting note exists.
+   * All description rewrites share one agent round-trip.
+   */
+  private async updateRelatedNotes(
+    transcript: RawTranscript,
+    file: TFile,
+    analysis: TranscriptAnalysis | null
+  ): Promise<void> {
+    const enrichment = analysis?.enrichment ?? null;
+    const entities = this.settings.autoExtractEntities ? (enrichment?.entities ?? null) : null;
+    
+    const syntheses = await this.synthesizeNoteUpdates(transcript, file, enrichment, entities);
+    
+    await this.handleParticipants(transcript, file, enrichment, syntheses);
+    
+    if (analysis && entities) {
+      await this.handleEntities(transcript, file, entities, analysis, syntheses);
+    }
+  }
+  
+  /**
+   * Ask the agent, once, for the new description of every existing person,
+   * issue, and topic note this meeting adds to. Returns them by note path.
+   */
+  private async synthesizeNoteUpdates(
+    transcript: RawTranscript,
+    file: TFile,
+    enrichment: AIEnrichment | null,
+    entities: EntityExtraction | null
+  ): Promise<Map<string, string>> {
+    if (!enrichment || !this.aiService.isEnabled()) {
+      return new Map();
+    }
+    
+    try {
+      const requests: SynthesisRequest[] = [];
+      if (this.settings.autoCreateParticipants && transcript.participants.length > 0) {
+        requests.push(...await this.participantService.collectSynthesisRequests(
+          transcript.participants, file.path, enrichment.participantInsights
+        ));
+      }
+      if (entities) {
+        requests.push(...await this.entityService.collectSynthesisRequests(entities, file.path));
+      }
+      return await this.aiService.synthesizeNotes(requests, transcript.title);
+    } catch (error) {
+      console.error('Meeting Goose: failed to synthesize note descriptions', error);
+      const reason = error instanceof Error ? error.message : String(error);
+      this.addLog('AI enrichment', 'warning', `Could not update descriptions for ${transcript.title}`, reason);
+      return new Map(); // Notes still get their meeting references
     }
   }
   
@@ -510,7 +563,8 @@ export default class MeetingGoosePlugin extends Plugin {
   private async handleParticipants(
     transcript: RawTranscript,
     file: TFile,
-    enrichment: AIEnrichment | null
+    enrichment: AIEnrichment | null,
+    syntheses?: Map<string, string>
   ): Promise<void> {
     if (!this.settings.autoCreateParticipants || transcript.participants.length === 0) {
       return;
@@ -524,7 +578,8 @@ export default class MeetingGoosePlugin extends Plugin {
         transcript.title,
         file.path,
         transcript.date,
-        participantInsights
+        participantInsights,
+        syntheses
       );
       
       if (result.created.length > 0) {
@@ -543,24 +598,19 @@ export default class MeetingGoosePlugin extends Plugin {
   }
   
   /**
-   * Extract and process entities (issues, updates, topics) from the transcript
+   * Apply what the analysis found about entities: status changes to known
+   * notes, then new and updated issue and topic notes.
    */
   private async handleEntities(
     transcript: RawTranscript,
     file: TFile,
-    enrichment: AIEnrichment | null,
-    entities: EntityExtraction
+    entities: EntityExtraction,
+    analysis: TranscriptAnalysis,
+    syntheses?: Map<string, string>
   ): Promise<void> {
-    if (!this.settings.autoExtractEntities || !enrichment) {
-      return;
-    }
-    
     try {
-      // Analyze and update status of existing entities
-      await this.updateExistingEntityStatuses(transcript);
-      
-      // Create/update entity notes
-      await this.createEntityNotes(transcript, file, entities);
+      await this.applyEntityStatusUpdates(analysis);
+      await this.createEntityNotes(transcript, file, entities, syntheses);
     } catch (error) {
       console.error('Meeting Goose: failed to process entities', error);
       // Continue - don't block meeting note creation
@@ -568,42 +618,28 @@ export default class MeetingGoosePlugin extends Plugin {
   }
   
   /**
-   * Analyze meeting content to update status of existing entities
+   * Write the status changes the analysis reported to the matching entity notes
    */
-  private async updateExistingEntityStatuses(transcript: RawTranscript): Promise<void> {
-    const existingEntities = await this.entityService.getExistingEntities();
-    
-    if (existingEntities.length === 0) {
-      return;
-    }
-    
-    try {
-      const statusUpdates = await this.aiService.analyzeEntityStatusChanges(
-        transcript,
-        existingEntities.map(e => ({ name: e.name, type: e.type, currentStatus: e.currentStatus }))
+  private async applyEntityStatusUpdates(analysis: TranscriptAnalysis): Promise<void> {
+    let applied = 0;
+    for (const update of analysis.statusUpdates) {
+      const entity = analysis.knownEntities.find(e =>
+        e.name.toLowerCase() === update.entityName.toLowerCase() &&
+        e.type === update.entityType
       );
       
-      for (const update of statusUpdates) {
-        const entity = existingEntities.find(e => 
-          e.name.toLowerCase() === update.entityName.toLowerCase() && 
-          e.type === update.entityType
-        );
-        
-        if (entity && update.newStatus) {
-          await this.entityService.updateEntityStatus(
-            entity.path,
-            update.newStatus,
-            update.reason
-          );
+      if (entity && update.newStatus) {
+        try {
+          await this.entityService.updateEntityStatus(entity.path, update.newStatus, update.reason);
+          applied++;
+        } catch (error) {
+          console.error(`Meeting Goose: failed to update status of ${entity.name}`, error);
         }
       }
-      
-      if (statusUpdates.length > 0) {
-        console.debug(`Meeting Goose: updated status for ${statusUpdates.length} entity(ies)`);
-      }
-    } catch (error) {
-      console.error('Meeting Goose: failed to analyze entity status changes', error);
-      // Continue - don't block entity extraction
+    }
+    
+    if (applied > 0) {
+      console.debug(`Meeting Goose: updated status for ${applied} entity(ies)`);
     }
   }
   
@@ -613,7 +649,8 @@ export default class MeetingGoosePlugin extends Plugin {
   private async createEntityNotes(
     transcript: RawTranscript,
     file: TFile,
-    entities: EntityExtraction
+    entities: EntityExtraction,
+    syntheses?: Map<string, string>
   ): Promise<void> {
     const hasEntities = entities.issues.length > 0 || 
                         entities.updates.length > 0 || 
@@ -627,7 +664,8 @@ export default class MeetingGoosePlugin extends Plugin {
       entities,
       transcript.title,
       file.path,
-      transcript.date
+      transcript.date,
+      syntheses
     );
     
     if (entityResult.created.length > 0) {
@@ -1031,26 +1069,9 @@ export default class MeetingGoosePlugin extends Plugin {
    * Internal reprocess method (without UI notifications)
    */
   private async reprocessNoteInternal(file: TFile, transcript: RawTranscript): Promise<void> {
-    // AI enrichment
-    const enrichment = await this.aiService.processTranscript(transcript);
-    
-    // Extract entities if enabled
-    let entities: EntityExtraction | null = null;
-    if (this.settings.autoExtractEntities && enrichment) {
-      entities = await this.aiService.extractEntities(transcript);
-      if (entities) {
-        enrichment.entities = entities;
-        
-        // Enrich participant insights with entity information
-        if (enrichment.participantInsights && enrichment.participantInsights.length > 0) {
-          enrichment.participantInsights = this.aiService.enrichParticipantInsightsWithEntities(
-            enrichment.participantInsights,
-            entities,
-            transcript.date
-          );
-        }
-      }
-    }
+    // AI analysis (one agent round-trip)
+    const analysis = await this.analyzeTranscript(transcript, this.settings.autoExtractEntities);
+    const enrichment = analysis?.enrichment ?? null;
     
     // Re-run auto-linking
     const suggestedLinks = this.applyAutoLinking(transcript, enrichment);
@@ -1069,15 +1090,8 @@ export default class MeetingGoosePlugin extends Plugin {
     // Update file
     await this.app.vault.modify(file, newContent);
     
-    // Process participants if enabled
-    if (this.settings.autoCreateParticipants) {
-      await this.handleParticipants(transcript, file, enrichment);
-    }
-    
-    // Process entities if we extracted them
-    if (entities) {
-      await this.handleEntities(transcript, file, enrichment, entities);
-    }
+    // Update the vault notes the meeting touched
+    await this.updateRelatedNotes(transcript, file, analysis);
   }
   
   /**
@@ -1117,7 +1131,8 @@ export default class MeetingGoosePlugin extends Plugin {
       
       if (this.settings.aiEnabled && this.aiService.isEnabled()) {
         try {
-          enrichment = await this.aiService.processTranscript(transcript);
+          // Enrichment only: this command rewrites the note and nothing else.
+          enrichment = (await this.aiService.analyzeMeeting(transcript))?.enrichment ?? enrichment;
           new Notice('AI enrichment complete');
         } catch (error) {
           console.error('Meeting Goose: AI enrichment failed during reprocess', error);
