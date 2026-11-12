@@ -108,8 +108,8 @@ export class StatsService {
     
     if (Array.isArray(raw)) {
       return raw.map(p => {
-        // Handle "[[Name]]" format
-        const match = String(p).match(/\[\[([^\]]+\|?)/);
+        // Handle "[[Name]]" and "[[Name|Shown as]]": count people by the note they link to
+        const match = String(p).match(/\[\[([^\]|]+)/);
         return match ? match[1] : String(p).replace(/["[\]]/g, '');
       }).filter(p => p);
     }

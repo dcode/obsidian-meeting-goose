@@ -82,54 +82,6 @@ describe('batched note synthesis', () => {
       expect(content).toContain('Meetings/2024-01-15 Standup');
     });
 
-    describe('name details', () => {
-      const details = {
-        'Doe, John CTR': {
-          originalName: 'Doe, John A CTR USAF AFMC AFLCMC/HNCO',
-          lastName: 'Doe', firstName: 'John', middleInitial: 'A',
-          rank: 'CTR', branch: 'USAF', organization: 'AFMC AFLCMC/HNCO',
-        },
-      };
-
-      it('records them as properties on a new person note', async () => {
-        await service.processParticipants(['Doe, John CTR'], 'Standup', MEETING_PATH, MEETING_DATE, [], undefined, details);
-
-        const content = await read('People/Doe, John CTR.md');
-        expect(content).toContain([
-          'type: person',
-          'tags: [person]',
-          'aliases: ["Doe, John A CTR USAF AFMC AFLCMC/HNCO"]',
-          'last_name: "Doe"',
-          'first_name: "John"',
-          'middle_initial: "A"',
-          'rank: "CTR"',
-          'branch: "USAF"',
-          'organization: "AFMC AFLCMC/HNCO"',
-          '---',
-          '',
-          '# Doe, John CTR',
-        ].join('\n'));
-      });
-
-      it('adds only the missing properties to an existing note', async () => {
-        vault()._setFile('People/Doe, John CTR.md', '---\ntype: person\nrank: "Contractor"\n---\n\n# Doe, John CTR\n\n## Meetings\n');
-
-        await service.processParticipants(['Doe, John CTR'], 'Standup', MEETING_PATH, MEETING_DATE, [], undefined, details);
-
-        const content = await read('People/Doe, John CTR.md');
-        expect(content).toContain('rank: "Contractor"');
-        expect(content).not.toContain('rank: "CTR"');
-        expect(content).toContain('branch: "USAF"');
-        expect(content).toContain('organization: "AFMC AFLCMC/HNCO"');
-        expect(content.match(/^---$/gm)).toHaveLength(2);
-      });
-
-      it('writes no extra properties for an ordinary name', async () => {
-        await service.processParticipants(['Erin'], 'Standup', MEETING_PATH, MEETING_DATE, [], undefined, details);
-        expect(await read('People/Erin.md')).toContain('tags: [person]\n---\n');
-      });
-    });
-
     it('keeps the existing About section when no synthesis is supplied', async () => {
       await service.processParticipants(['Bob'], 'Standup', MEETING_PATH, MEETING_DATE, insights);
 

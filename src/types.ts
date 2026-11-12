@@ -96,6 +96,8 @@ export interface ProcessedMeeting {
   transcript: RawTranscript;
   enrichment?: AIEnrichment;
   autoLinks: Map<string, string>; // term -> note path
+  /** Participant display name -> name of the person note to link to, when they differ. */
+  participantLinks?: Record<string, string>;
   suggestedLinks: SuggestedLink[];
 }
 
