@@ -142,8 +142,8 @@ export class ParticipantService {
   
   private aliasesOf(file: TFile): string[] {
     const aliases: unknown = this.app.metadataCache.getFileCache(file)?.frontmatter?.aliases;
-    if (Array.isArray(aliases)) return aliases.map(String);
-    return aliases ? [String(aliases)] : [];
+    const values: unknown[] = Array.isArray(aliases) ? aliases : [aliases];
+    return values.filter((alias): alias is string => typeof alias === 'string' && alias !== '');
   }
   
   /**
