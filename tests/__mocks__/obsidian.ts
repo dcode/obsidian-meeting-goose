@@ -32,7 +32,7 @@ export class Vault {
   }
 
   async modify(file: TFile, content: string): Promise<void> {
-    this.fileContents.set(path, content);
+    this.fileContents.set(file.path, content);
   }
 
   async createFolder(path: string): Promise<void> {
@@ -131,6 +131,10 @@ export class Modal {
   constructor(app: App) {}
   open(): void {}
   close(): void {}
+}
+
+export function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
 }
 
 export function addIcon(id: string, svg: string): void {}

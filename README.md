@@ -63,7 +63,11 @@ The plugin is not in the community plugin store. Install it manually:
 ## How the agent is used
 
 - The agent is started the first time it is needed and one process is reused. It is stopped when the plugin unloads or the agent command changes.
-- Every prompt runs in its own ACP session, so prompts never share context. Importing one meeting sends several prompts (enrichment, participant insights, entities, status changes, description synthesis).
+- Every prompt runs in its own ACP session, so prompts never share context.
+- Importing a meeting costs at most two prompts:
+  1. **Analysis** — the transcript is sent once and one reply carries the summary, action items, decisions, tags, participant insights, entities, and status changes of already-tracked issues and topics. A transcript too long for one prompt is split into ~30-minute chunks, one prompt each.
+  2. **Note updates** — one prompt rewrites the descriptions of every existing person, issue, and topic note the meeting added to. It is skipped when there are none.
+- Features that are turned off are left out of the prompt, so they cost no tokens.
 - Sessions use the system temp directory as their working directory, not your vault.
 - The plugin offers the agent no file or terminal access and **declines every tool permission request**. It also starts the agent with `GOOSE_MODE=chat`, which tells Goose not to use tools at all. Transcripts are untrusted text; the agent only needs to read them and answer.
 - A prompt that runs longer than 10 minutes is cancelled.
